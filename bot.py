@@ -7,7 +7,6 @@ import re
 import asyncio
 import time
 from datetime import datetime, timedelta
-import os
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -37,15 +36,10 @@ def get_common_chrome_options():
     options.binary_location = "/usr/local/bin/google-chrome"
     debug_print("Setting binary location to /usr/local/bin/google-chrome")
     
-    # Create a truly unique user-data directory based on process id and timestamp
-    unique_dir = f"/tmp/chrome_profile_{os.getpid()}_{int(time.time())}"
-    options.add_argument(f"--user-data-dir={unique_dir}")
-    debug_print(f"Using unique user-data-dir: {unique_dir}")
-    
-    # Add extra flags to minimize interference
-    options.add_argument("--disable-extensions")
-    options.add_argument("--no-default-browser-check")
-    options.add_argument("--no-first-run")
+    # Remove any explicit user-data-dir argument
+    # Instead, add incognito mode so that a temporary profile is used
+    options.add_argument("--incognito")
+    debug_print("Adding --incognito mode")
     
     if DEBUG_MODE:
         options.headless = False
