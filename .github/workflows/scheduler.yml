@@ -41,8 +41,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          # نحذف chromedriver_autoinstaller لأننا سنستخدم الإصدار المثبت يدويًا
-          pip install discord.py requests beautifulsoup4 selenium
+          # لا نثبت chromedriver_autoinstaller
+          pip install discord.py requests beautifulsoup4 selenium beautifulsoup4
 
       - name: Run Discord Bot with xvfb
         env:
