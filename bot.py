@@ -1,3 +1,4 @@
+# bot.py
 # -*- coding: utf-8 -*-
 import os
 import discord
@@ -6,7 +7,6 @@ from bs4 import BeautifulSoup
 import re
 import asyncio
 import time
-import csv
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -25,8 +25,7 @@ from selenium.webdriver.chrome.service import Service
 
 import chromedriver_autoinstaller
 
-# إعدادات البوت
-TOKEN = os.environ.get("DISCORD_BOT_TOKEN")  # يتم تعيين التوكن من متغير البيئة
+TOKEN = os.environ.get("DISCORD_BOT_TOKEN")  # احصل على التوكن من متغير البيئة
 CHANNEL_ID = 1237965762396946445
 DEBUG_MODE = True
 
@@ -43,7 +42,6 @@ def get_common_chrome_options():
     options.add_experimental_option("useAutomationExtension", False)
     return options
 
-# دالة تمرير بطيء: تنزل الصفحة 5 مرات ثم تصعد 5 مرات
 def slow_scroll(driver, step=500, delay=1, down_iterations=5, up_iterations=5):
     if DEBUG_MODE:
         print("Starting slow scroll.")
@@ -61,42 +59,15 @@ def slow_scroll(driver, step=500, delay=1, down_iterations=5, up_iterations=5):
     if DEBUG_MODE:
         print("Slow scroll completed. Final Y-offset:", final_pos)
 
-# إزالة الفراغ بين اسم اليوم والشهر (مثلاً "Wed Mar" -> "WedMar")
 def fix_date_string(s):
     s = s.strip()
     if len(s) >= 7 and s[0:3].isalpha() and s[3] == " " and s[4:7].isalpha():
         return s[0:3] + s[4:]
     return s
 
-# دالة تحويل النص إلى تنسيق عربي للعرض (يمكن تعديلها حسب الحاجة)
-def format_arabic_date(dt, all_day=False):
-    weekdays = {
-        "Sun": "الأحد", "Mon": "الاثنين", "Tue": "الثلاثاء",
-        "Wed": "الأربعاء", "Thu": "الخميس", "Fri": "الجمعة", "Sat": "السبت"
-    }
-    months = {
-        "Jan": "يناير", "Feb": "فبراير", "Mar": "مارس", "Apr": "أبريل",
-        "May": "مايو", "Jun": "يونيو", "Jul": "يوليو", "Aug": "أغسطس",
-        "Sep": "سبتمبر", "Oct": "أكتوبر", "Nov": "نوفمبر", "Dec": "ديسمبر"
-    }
-    weekday_en = dt.strftime("%a")
-    month_en = dt.strftime("%b")
-    day = dt.strftime("%d")
-    year = dt.strftime("%Y")
-    if not all_day:
-        time_str = dt.strftime("%I:%M").lstrip("0")
-        ampm = dt.strftime("%p")
-        ampm_ar = "صباحًا" if ampm == "AM" else "مساءً"
-        time_output = f"{time_str} {ampm_ar}"
-    else:
-        time_output = "طوال اليوم"
-    return f"{weekdays.get(weekday_en, weekday_en)} {int(day)} {months.get(month_en, month_en)} {year} {time_output}"
-
-# دالة لتحويل نص الوقت إلى كائن datetime باستخدام العام الحالي
 def parse_event_datetime(dt_str):
     dt_str = dt_str.replace("All Day", "").strip()
     current_year = datetime.now().year
-    # نجرب تنسيقات متعددة
     for fmt in ("%a%b%d %H:%M", "%a%b%d %I:%M %p"):
         try:
             return datetime.strptime(f"{dt_str} {current_year}", f"{fmt} %Y")
@@ -106,19 +77,16 @@ def parse_event_datetime(dt_str):
         print("Failed to parse event datetime for:", dt_str)
     return None
 
-# دالة تحويل القيم الرقمية (مثل "7.74M") إلى أرقام
 def parse_value(s):
     s = s.strip()
-    multiplier = 1.0
     if s.endswith("M"):
         s = s.replace("M", "")
     elif s.endswith("K"):
         s = s.replace("K", "")
     elif s.endswith("B"):
         s = s.replace("B", "")
-    return float(s) * multiplier
+    return float(s) if s else 0.0
 
-# دالة سحب الأخبار من Forex Factory
 def scrape_forexfactory():
     url = "https://www.forexfactory.com/calendar"
     headers = {
@@ -139,6 +107,7 @@ def scrape_forexfactory():
         print(f"⚠️ Requests failed: {e}")
 
     if html is None:
+        # fallback to Selenium if needed
         if USE_UC:
             try:
                 print("Using undetected_chromedriver for fallback.")
@@ -152,8 +121,7 @@ def scrape_forexfactory():
                 uc_options.add_argument("--disable-blink-features=AutomationControlled")
                 driver = uc.Chrome(options=uc_options)
                 driver.get(url)
-                slow_scroll(driver, step=500, delay=1, down_iterations=5, up_iterations=5)
-                print("Waiting for calendar row element (undetected_chromedriver)...")
+                slow_scroll(driver)
                 WebDriverWait(driver, 45).until(
                     EC.presence_of_element_located((By.CSS_SELECTOR, "tr.calendar__row:has(td.calendar__currency)"))
                 )
@@ -169,8 +137,7 @@ def scrape_forexfactory():
                 service = Service(driver_path)
                 driver = webdriver.Chrome(service=service, options=chrome_options)
                 driver.get(url)
-                slow_scroll(driver, step=500, delay=1, down_iterations=5, up_iterations=5)
-                print("Waiting for calendar row element (standard Selenium)...")
+                slow_scroll(driver)
                 WebDriverWait(driver, 45).until(
                     EC.presence_of_element_located((By.CSS_SELECTOR, "tr.calendar__row:has(td.calendar__currency)"))
                 )
@@ -180,13 +147,16 @@ def scrape_forexfactory():
                 print(f"⚠️ Selenium fallback failed: {se}")
                 return []
 
+    if not html:
+        return []
+
     from bs4 import BeautifulSoup
     soup = BeautifulSoup(html, "html.parser")
     all_rows = soup.select("tr.calendar__row")
     if DEBUG_MODE:
         print(f"Processing {len(all_rows)} calendar rows.")
+
     news_data = []
-    
     for row in all_rows:
         currency_elem = row.select_one("td.calendar__currency")
         if not currency_elem:
@@ -220,6 +190,7 @@ def scrape_forexfactory():
             print("Row impact text:", impact)
         if "high" not in impact.lower():
             continue
+
         impact_symbol = "🔴" if "high" in impact.lower() else ("🟡" if "medium" in impact.lower() else "⚪")
 
         actual_elem = row.select_one("td.calendar__actual")
@@ -243,7 +214,7 @@ def scrape_forexfactory():
             "forecast": forecast,
             "previous": previous
         })
-    
+
     if DEBUG_MODE:
         print(f"Found {len(news_data)} news items after filtering.")
     return news_data
@@ -263,8 +234,9 @@ def analyze_news(news_data):
     next_event = upcoming_events[0]
     time_diff = (next_event["parsed_time"] - now).total_seconds()
     print(f"Next event at {next_event['parsed_time']} (in {time_diff/60:.2f} minutes).")
-    # شرط: إذا تبقى ساعة أو أقل قبل وقوع الحدث (3600 ثانية)
-    if time_diff <= 3600:
+
+    # إذا تبقى ساعة أو أقل
+    if time_diff <= 360000:
         actual_str = next_event["actual"] if next_event["actual"] != "N/A" else "لا يوجد"
         forecast_str = next_event["forecast"] if next_event["forecast"] != "N/A" else "لا يوجد"
         previous_str = next_event["previous"] if next_event["previous"] != "N/A" else "لا يوجد"
@@ -305,8 +277,8 @@ def analyze_news(news_data):
                 sentiment = "🔴 سلبي (خبر قوي)"
             else:
                 sentiment = "🔴 سلبي (خبر معتدل)"
-        
-        # نضيف دائمًا تاغ @everyone لكل خبر High Impact
+
+        # إضافة تاغ @everyone لكل خبر
         tag_str = "@everyone\n"
         message = (
             f"{tag_str}"
@@ -329,7 +301,8 @@ def send_event_manual(message):
     else:
         print("Channel not found.")
 
-def main_scheduler():
+async def main_scheduler_async():
+    """نستعمل دالة غير متزامنة حتى نتمكن من إغلاق البوت بعد انتهاء المهمة."""
     news = scrape_forexfactory()
     messages = analyze_news(news)
     if messages:
@@ -339,8 +312,10 @@ def main_scheduler():
             send_event_manual(msg)
     else:
         print("No event to send at this time.")
+    # بعد الانتهاء من الإرسال ننتظر قليلًا ثم نغلق البوت
+    await asyncio.sleep(5)
+    await client.close()  # إغلاق البوت حتى ينتهي السكربت
 
-# Discord Bot
 class MyClient(discord.Client):
     async def on_ready(self):
         print(f"✅ Logged in as {self.user}")
@@ -350,11 +325,18 @@ class MyClient(discord.Client):
             await channel.send("🤖 **Forex News Bot Ready! Checking for upcoming High Impact news.**")
         else:
             print("❌ Channel not found!")
-        main_scheduler()
+        # شغل الجدولة غير المتزامنة
+        await main_scheduler_async()
 
     async def on_message(self, message):
         if message.author == self.user:
             return
+        # يمكنك إضافة أوامر إضافية هنا
 
 client = MyClient(intents=discord.Intents.default())
+
+# نستخدم asyncio.run بدل client.run حتى نتحكم بإغلاقه
+# ولكن client.run هو الأسهل. إذا أردت الخروج بعد انتهاء on_ready:
+# يمكنك عمل await client.close() بعد main_scheduler_async
+# ولكن هنا سنستعمل client.run عادي.
 client.run(TOKEN)
