@@ -24,10 +24,11 @@ from selenium.webdriver.chrome.service import Service
 
 import chromedriver_autoinstaller
 
-# إعدادات التوكن والقناة للبوت على Discord
-TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-CHANNEL_ID = 1237965762396946445
-DEBUG_MODE = True
+# نقرأ المتغيرات من البيئة
+TOKEN = os.getenv("DISCORD_BOT_TOKEN")  # يأتي من GitHub Secrets
+CHANNEL_ID = int(os.getenv("CHANNEL_ID", "0"))  # تأكد من تحويله إلى int
+DEBUG_MODE = os.getenv("DEBUG_MODE", "False") == "True"
+
 intents = discord.Intents.default()
 
 def get_common_chrome_options():
@@ -43,7 +44,6 @@ def get_common_chrome_options():
     options.add_experimental_option("useAutomationExtension", False)
     return options
 
-# دالة التمرير البطيء
 def slow_scroll(driver, step=500, delay=1, down_iterations=5, up_iterations=5):
     if DEBUG_MODE:
         print("Starting slow scroll.")
@@ -61,7 +61,6 @@ def slow_scroll(driver, step=500, delay=1, down_iterations=5, up_iterations=5):
         final_pos = driver.execute_script("return window.pageYOffset;")
         print("Slow scroll completed. Final page Y-offset:", final_pos)
 
-# إزالة الفراغ بين اليوم والشهر (مثلاً "Wed Mar" -> "WedMar")
 def fix_date_string(s):
     s = s.strip()
     if len(s) >= 7 and s[0:3].isalpha() and s[3] == " " and s[4:7].isalpha():
@@ -92,9 +91,6 @@ def format_arabic_date(dt, all_day=False):
     return f"{weekdays.get(weekday_en, weekday_en)} {int(day)} {months.get(month_en, month_en)} {year} {time_output}"
 
 def convert_to_arabic_date(raw_date_time):
-    """
-    تبسيط دالة تحويل التاريخ بحيث لا يتم تغيير المنطقة الزمنية.
-    """
     raw_date_time = raw_date_time.strip()
     if raw_date_time[:3] not in ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]:
         return raw_date_time
@@ -123,25 +119,20 @@ def convert_to_arabic_date(raw_date_time):
             return raw_date_time
         return format_arabic_date(dt, False)
 
-# تحويل القيم الرقمية مثل "7.74M" إلى رقم
 def parse_value(s):
     s = s.strip()
-    multiplier = 1.0
     if s.endswith("M"):
         s = s.replace("M", "")
     elif s.endswith("K"):
         s = s.replace("K", "")
     elif s.endswith("B"):
         s = s.replace("B", "")
-    return float(s) * multiplier
+    try:
+        return float(s)
+    except ValueError:
+        return None
 
 def scrape_forexfactory():
-    """
-    تجمع هذه الدالة جميع الأخبار (بجميع أنواع التأثير) من موقع forexfactory.
-    إذا كانت خانة التاريخ أو الوقت تحتوي على "n/a" أو "لا يوجد" أو تحتوي على قيمة غير وقت حقيقي
-    (مثلاً لا تحتوي على ":"), يتم استخدام آخر قيمة موجودة.
-    وفي حال فشل تحليل التاريخ/الوقت يتم تعيين event_dt إلى None.
-    """
     url = "https://www.forexfactory.com/calendar"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -160,59 +151,64 @@ def scrape_forexfactory():
     except Exception as e:
         print(f"⚠️ Requests failed: {e}")
 
+    if html is None and USE_UC:
+        # محاولة استخدام undetected_chromedriver
+        try:
+            print("Using undetected_chromedriver for fallback.")
+            uc_options = uc.ChromeOptions()
+            if DEBUG_MODE:
+                uc_options.headless = False
+            else:
+                uc_options.add_argument("--headless=new")
+            uc_options.add_argument("--no-sandbox")
+            uc_options.add_argument("--disable-dev-shm-usage")
+            uc_options.add_argument("--disable-blink-features=AutomationControlled")
+            driver = uc.Chrome(options=uc_options)
+            driver.get(url)
+            slow_scroll(driver, step=500, delay=1, down_iterations=5, up_iterations=5)
+            print("Waiting for calendar row element (undetected_chromedriver)...")
+            WebDriverWait(driver, 45).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "tr.calendar__row:has(td.calendar__currency)"))
+            )
+            html = driver.page_source
+            driver.quit()
+        except Exception as e_uc:
+            print(f"undetected_chromedriver failed: {e_uc}. Trying standard Selenium fallback.")
+
     if html is None:
-        if USE_UC:
-            try:
-                print("Using undetected_chromedriver for fallback.")
-                uc_options = uc.ChromeOptions()
-                if DEBUG_MODE:
-                    uc_options.headless = False
-                else:
-                    uc_options.add_argument("--headless=new")
-                uc_options.add_argument("--no-sandbox")
-                uc_options.add_argument("--disable-dev-shm-usage")
-                uc_options.add_argument("--disable-blink-features=AutomationControlled")
-                driver = uc.Chrome(options=uc_options)
-                driver.get(url)
-                slow_scroll(driver, step=500, delay=1, down_iterations=5, up_iterations=5)
-                print("Waiting for calendar row element (undetected_chromedriver)...")
-                WebDriverWait(driver, 45).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, "tr.calendar__row:has(td.calendar__currency)"))
-                )
-                html = driver.page_source
-                driver.quit()
-            except Exception as e_uc:
-                print(f"undetected_chromedriver failed: {e_uc}. Trying standard Selenium fallback.")
-        if html is None:
-            try:
-                print("Using standard Selenium fallback.")
-                chrome_options = get_common_chrome_options()
-                driver_path = chromedriver_autoinstaller.install()
-                service = Service(driver_path)
-                driver = webdriver.Chrome(service=service, options=chrome_options)
-                driver.get(url)
-                slow_scroll(driver, step=500, delay=1, down_iterations=5, up_iterations=5)
-                print("Waiting for calendar row element (standard Selenium)...")
-                WebDriverWait(driver, 45).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, "tr.calendar__row:has(td.calendar__currency)"))
-                )
-                html = driver.page_source
-                driver.quit()
-            except Exception as se:
-                print(f"⚠️ Selenium fallback failed: {se}")
-                return []
+        # محاولة استخدام standard Selenium
+        try:
+            print("Using standard Selenium fallback.")
+            chrome_options = get_common_chrome_options()
+            driver_path = chromedriver_autoinstaller.install()
+            service = Service(driver_path)
+            driver = webdriver.Chrome(service=service, options=chrome_options)
+            driver.get(url)
+            slow_scroll(driver, step=500, delay=1, down_iterations=5, up_iterations=5)
+            print("Waiting for calendar row element (standard Selenium)...")
+            WebDriverWait(driver, 45).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "tr.calendar__row:has(td.calendar__currency)"))
+            )
+            html = driver.page_source
+            driver.quit()
+        except Exception as se:
+            print(f"⚠️ Selenium fallback failed: {se}")
+            return []
+
+    if not html:
+        return []
 
     soup = BeautifulSoup(html, "html.parser")
     all_rows = soup.select("tr.calendar__row")
     if DEBUG_MODE:
         print(f"Processing {len(all_rows)} calendar rows.")
+
     news_data = []
     current_year = datetime.now().year
     last_date = None
     last_time = None
 
     for row in all_rows:
-        # التعامل مع خانة التاريخ
         date_cell = row.select_one("td.calendar__date")
         if date_cell:
             cell_text = date_cell.get_text(strip=True)
@@ -227,11 +223,9 @@ def scrape_forexfactory():
         if not current_day:
             continue
 
-        # التعامل مع خانة الوقت
         time_elem = row.select_one("td.calendar__time")
         if time_elem:
             cell_text = time_elem.get_text(strip=True)
-            # إذا لم يحتوي على ":" أو كانت القيمة "n/a" أو "لا يوجد" نستخدم آخر وقت صالح
             if cell_text.lower() in ["n/a", "لا يوجد"] or ":" not in cell_text:
                 row_time = last_time
             else:
@@ -243,7 +237,6 @@ def scrape_forexfactory():
         if not row_time or row_time.lower() in ["all day"]:
             continue
 
-        # محاولة إنشاء كائن datetime؛ في حال الفشل نعين event_dt إلى None
         try:
             event_dt = datetime.strptime(f"{current_day} {row_time} {current_year}", "%a%b %d %I:%M%p %Y")
         except Exception as e:
@@ -251,7 +244,6 @@ def scrape_forexfactory():
                 print(f"⚠️ Failed to parse datetime for row: {e}")
             event_dt = None
 
-        # إذا كانت خانة العملة موجودة فهذا خبر
         currency_elem = row.select_one("td.calendar__currency")
         if not currency_elem:
             continue
@@ -296,12 +288,9 @@ def scrape_forexfactory():
     return news_data
 
 def analyze_news(news_data):
-    """
-    تصنيف الأخبار بناءً على الفرق بين النتائج والتوقعات لتحديد تأثير الخبر.
-    """
     messages = []
-    moderate_threshold = 1.0   # عتبة الخبر المعتدل (%)
-    strong_threshold = 3.0     # عتبة الخبر القوي (%)
+    moderate_threshold = 1.0
+    strong_threshold = 3.0
     
     for idx, news in enumerate(news_data, start=1):
         actual_str = news["actual"] if news["actual"] != "N/A" else "لا يوجد"
@@ -362,25 +351,13 @@ def analyze_news(news_data):
     return messages
 
 def filter_high_impact(news_data):
-    """
-    تصفي الأخبار لتشمل فقط تلك التي يحتوي نص تأثيرها على كلمة "high" (حالة غير حساسة).
-    """
     return [news for news in news_data if "high" in news["impact"].lower()]
 
 def filter_within_one_hour(news_data):
-    """
-    ترجع فقط الأخبار التي لديها قيمة event_dt صحيحة والموعد خلال ساعة أو أقل من الوقت الحالي.
-    """
     now = datetime.now()
     return [n for n in news_data if n["event_dt"] is not None and now <= n["event_dt"] <= now + timedelta(hours=1)]
 
 async def debug_show_events():
-    """
-    في وضع التصحيح:
-      - نجمع كل الأخبار.
-      - نعرض جميع الأخبار مع تاريخ ووقت كل خبر.
-      - نصنف الأخبار ونظهر الأخبار ذات التأثير العالي مع حساب الوقت المتبقي.
-    """
     news_data = await asyncio.to_thread(scrape_forexfactory)
     if not news_data:
         print("❌ لا توجد أخبار.")
@@ -463,4 +440,8 @@ class MyClient(discord.Client):
             await asyncio.sleep(1800)
 
 client = MyClient(intents=intents)
-client.run(TOKEN)
+
+if not TOKEN or TOKEN.strip() == "":
+    print("❌ Discord bot token is missing or empty!")
+else:
+    client.run(TOKEN)
