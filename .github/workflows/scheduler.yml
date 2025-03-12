@@ -14,16 +14,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      - name: Install Google Chrome stable (v134.0.6998.88-1)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y wget gnupg unzip
-          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
-          sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list'
-          sudo apt-get update
-          sudo apt-get install -y google-chrome-stable=134.0.6998.88-1
-          google-chrome --version
-
       - name: Set up Python 3.9
         uses: actions/setup-python@v2
         with:
@@ -32,11 +22,30 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install discord.py requests beautifulsoup4 selenium chromedriver_autoinstaller
+          pip install discord.py requests beautifulsoup4 selenium gdown
 
-      - name: Verify ChromeDriver Installation
+      - name: Download and install Google Chrome from Google Drive
         run: |
-          python -c "import chromedriver_autoinstaller; print('Installed ChromeDriver:', chromedriver_autoinstaller.install())"
+          # رابط Google Drive للـ Chrome (ZIP)
+          gdown "https://drive.google.com/uc?id=1Id8uHs9l_YQNFXqTdl4zft2bElnl7mzc" -O chrome.zip
+          unzip chrome.zip -d chrome_temp
+          # نفترض أن الملف التنفيذي داخل chrome_temp يسمى "chrome" (يمكنك تعديل الاسم إذا كان مختلفًا)
+          sudo mv chrome_temp/chrome /usr/local/bin/google-chrome
+          sudo chmod +x /usr/local/bin/google-chrome
+          rm -rf chrome.zip chrome_temp
+          echo "Installed Chrome version:"
+          /usr/local/bin/google-chrome --version
+
+      - name: Download and install ChromeDriver from Google Drive
+        run: |
+          # رابط Google Drive للـ ChromeDriver (ZIP)
+          gdown "https://drive.google.com/uc?id=1MOIBdxl9P1YCOdRphXCpUV1_O2_pNZJc" -O chromedriver.zip
+          unzip chromedriver.zip -d chromedriver_temp
+          # نفترض أن الملف التنفيذي داخل chromedriver_temp يسمى "chromedriver"
+          sudo mv chromedriver_temp/chromedriver /usr/local/bin/chromedriver
+          sudo chmod +x /usr/local/bin/chromedriver
+          rm -rf chromedriver.zip chromedriver_temp
+          echo "Installed ChromeDriver version:"
           chromedriver --version
 
       - name: Run Discord Bot with xvfb
