@@ -33,13 +33,10 @@ def debug_print(msg):
 
 def get_common_chrome_options():
     options = Options()
-    # تعيين موقع ملف Chrome المثبت
+    # تحديد موقع ملف Chrome الذي ثبتناه
     options.binary_location = "/usr/local/bin/google-chrome"
     debug_print("Setting binary location to /usr/local/bin/google-chrome")
-    # إضافة دليل بيانات فريد لتجنب تعارض الجلسات
-    unique_dir = f"/tmp/chrome-profile-{int(time.time())}"
-    options.add_argument(f"--user-data-dir={unique_dir}")
-    debug_print(f"Using unique user-data-dir: {unique_dir}")
+    # إزالة خيار --user-data-dir لتجنب التعارض
     if DEBUG_MODE:
         options.headless = False
     else:
