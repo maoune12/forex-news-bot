@@ -24,10 +24,16 @@ from selenium.webdriver.chrome.service import Service
 
 import chromedriver_autoinstaller
 
-# نقرأ المتغيرات من البيئة
-TOKEN = os.getenv("DISCORD_BOT_TOKEN")  # يأتي من GitHub Secrets
-CHANNEL_ID = int(os.getenv("CHANNEL_ID", "0"))  # تأكد من تحويله إلى int
+# قراءة المتغيرات من أسرار (Secrets) GitHub أو البيئة
+TOKEN = os.getenv("DISCORD_BOT_TOKEN")   # يجب تعريفه في Secrets
+CHANNEL_ID = os.getenv("CHANNEL_ID", "0")
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False") == "True"
+
+# تحويل CHANNEL_ID إلى int إذا كان رقماً صالحاً
+try:
+    CHANNEL_ID = int(CHANNEL_ID)
+except ValueError:
+    CHANNEL_ID = 0
 
 intents = discord.Intents.default()
 
@@ -133,6 +139,11 @@ def parse_value(s):
         return None
 
 def scrape_forexfactory():
+    """
+    جمع الأخبار من موقع forexfactory.
+    إذا كانت خانة التاريخ أو الوقت تحتوي على "n/a" أو "لا يوجد" أو قيمة غير وقت حقيقي،
+    نستخدم آخر قيمة صالحة ظهرت. وإذا فشل التحليل نعين event_dt=None.
+    """
     url = "https://www.forexfactory.com/calendar"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -393,7 +404,7 @@ async def debug_show_events():
         print("=" * 60)
     ready_news = filter_within_one_hour(high_news)
     print(f"\n------- الأخبار الجاهزة للإرسال: {len(ready_news)} خبر -------")
-    print("انتهاء التصحيح، سيتم إغلاق البوت.")
+    print("انتهاء التصحيح.")
 
 class MyClient(discord.Client):
     async def on_ready(self):
@@ -401,16 +412,30 @@ class MyClient(discord.Client):
         channel = self.get_channel(CHANNEL_ID)
         if channel:
             print(f"Channel found: {channel.name}")
-            await channel.send("🤖 **Forex News Bot Ready!**")
+            # أرسل رسالة بسيطة (اختياري)
+            await channel.send("🤖 **Forex News Bot is Running Ephemerally**")
         else:
             print("❌ Channel not found!")
+
         if DEBUG_MODE:
+            # وضع التصحيح
             await debug_show_events()
-            await self.close()
         else:
-            self.loop.create_task(self.auto_news())
+            # وضع الإنتاج - تنفيذ المهمة مرة واحدة
+            news_data = await asyncio.to_thread(scrape_forexfactory)
+            high_news = filter_high_impact(news_data)
+            ready_news = filter_within_one_hour(high_news)
+            if channel and ready_news:
+                news_messages = analyze_news(ready_news)
+                for msg in news_messages:
+                    await channel.send(msg)
+
+        # بعد تنفيذ المهمة، نغلق الاتصال
+        await self.close()
     
     async def on_message(self, message):
+        # هذا الجزء اختياري إذا أردت تنفيذ أوامر أخرى أثناء عمل البوت
+        # لكن بما أننا نغلق الاتصال مباشرة، فلن يعمل إلا لو كنت تجرب محلياً
         if message.author == self.user:
             return
         if message.channel.id != CHANNEL_ID:
@@ -425,22 +450,9 @@ class MyClient(discord.Client):
             news_messages = analyze_news(ready_news)
             for msg in news_messages:
                 await message.channel.send(msg)
-    
-    async def auto_news(self):
-        await self.wait_until_ready()
-        channel = self.get_channel(CHANNEL_ID)
-        while not self.is_closed():
-            news_data = await asyncio.to_thread(scrape_forexfactory)
-            high_news = filter_high_impact(news_data)
-            ready_news = filter_within_one_hour(high_news)
-            if ready_news:
-                news_messages = analyze_news(ready_news)
-                for msg in news_messages:
-                    await channel.send(msg)
-            await asyncio.sleep(1800)
 
+# بدء التشغيل
 client = MyClient(intents=intents)
-
 if not TOKEN or TOKEN.strip() == "":
     print("❌ Discord bot token is missing or empty!")
 else:
