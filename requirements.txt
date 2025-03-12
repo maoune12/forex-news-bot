@@ -1,6 +1,3 @@
 discord.py
 requests
 beautifulsoup4
-selenium
-chromedriver-autoinstaller
-APScheduler
