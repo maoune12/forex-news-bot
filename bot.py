@@ -7,6 +7,8 @@ import re
 import asyncio
 import time
 from datetime import datetime, timedelta
+import tempfile
+import shutil
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -15,7 +17,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
 
-# قراءة المتغيرات من البيئة
+# Read environment variables
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID", "0")
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False") == "True"
@@ -33,10 +35,15 @@ def debug_print(msg):
 
 def get_common_chrome_options():
     options = Options()
-    # تحديد موقع ملف Chrome الذي ثبتناه
+    # Set the binary location to the installed Chrome
     options.binary_location = "/usr/local/bin/google-chrome"
     debug_print("Setting binary location to /usr/local/bin/google-chrome")
-    # لم نستخدم خيار --user-data-dir لتجنب تعارض الجلسات
+    
+    # Create a unique temporary user-data directory
+    temp_dir = tempfile.mkdtemp(prefix="chrome_profile_")
+    options.add_argument(f"--user-data-dir={temp_dir}")
+    debug_print(f"Using unique user-data-dir: {temp_dir}")
+    
     if DEBUG_MODE:
         options.headless = False
     else:
