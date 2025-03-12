@@ -8,9 +8,6 @@ import asyncio
 import time
 from datetime import datetime, timedelta
 
-# استخدام chromedriver_autoinstaller للعثور على الإصدار المناسب تلقائيًا
-import chromedriver_autoinstaller
-
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -32,6 +29,8 @@ intents = discord.Intents.default()
 
 def get_common_chrome_options():
     options = Options()
+    # تعيين موقع ملف Chrome الذي قمنا بتنزيله
+    options.binary_location = "/usr/local/bin/google-chrome"
     if DEBUG_MODE:
         options.headless = False
     else:
@@ -156,7 +155,7 @@ def scrape_forexfactory():
         try:
             print("Using standard Selenium fallback.")
             chrome_options = get_common_chrome_options()
-            # تثبيت ChromeDriver المناسب تلقائيًا (سيبحث عن إصدار Chrome المثبت ويحمّله إذا لم يكن موجودًا)
+            # هنا نستخدم chromedriver_autoinstaller لتحميل الإصدار المناسب تلقائيًا
             driver_path = chromedriver_autoinstaller.install()
             if DEBUG_MODE:
                 print("chromedriver_autoinstaller installed driver at:", driver_path)
