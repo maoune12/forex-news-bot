@@ -24,6 +24,11 @@ jobs:
           sudo apt-get install -y google-chrome-stable=134.0.6998.88-1
           google-chrome --version
 
+      - name: Verify ChromeDriver Installation via chromedriver_autoinstaller
+        run: |
+          python -c "import chromedriver_autoinstaller; print(chromedriver_autoinstaller.install())"
+          chromedriver --version
+
       - name: Set up Python 3.9
         uses: actions/setup-python@v2
         with:
@@ -34,7 +39,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install discord.py requests beautifulsoup4 selenium chromedriver_autoinstaller
 
-      - name: Run Discord Bot with xvfb (if needed)
+      - name: Run Discord Bot with xvfb
         env:
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
