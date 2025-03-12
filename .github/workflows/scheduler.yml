@@ -34,6 +34,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install discord.py requests beautifulsoup4 selenium chromedriver_autoinstaller
 
+      - name: Verify ChromeDriver Installation
+        run: |
+          python -c "import chromedriver_autoinstaller; print('Installed ChromeDriver:', chromedriver_autoinstaller.install())"
+          chromedriver --version
+
       - name: Run Discord Bot with xvfb
         env:
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
