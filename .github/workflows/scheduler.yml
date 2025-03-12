@@ -1,28 +1,34 @@
-name: Hourly News Scheduler
+name: Run Discord Bot
 
 on:
-  schedule:
-    - cron: "0 * * * 1-5"  # مثال تشغيل كل ساعة من الاثنين إلى الجمعة
+  push:
+    branches: [ main ]
   workflow_dispatch:
+  schedule:
+    - cron: "0 * * * 1-5"  # تشغيل كل ساعة في أيام الاثنين إلى الجمعة
 
 jobs:
-  run-scheduler:
+  run-bot:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v2
 
-      - name: Set up Python
+      - name: Set up Python 3.9
         uses: actions/setup-python@v2
         with:
           python-version: '3.9'
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: |
-          pip install -r requirements.txt
+          python -m pip install --upgrade pip
+          pip install discord.py requests beautifulsoup4 selenium chromedriver_autoinstaller undetected-chromedriver
 
-      - name: Run Bot Script
-        # هنا نمرر التوكن كمتغير بيئة
+      - name: Run Discord Bot with xvfb (if needed)
         env:
-          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
-        run: python bot.py
+          TOKEN: ${{ secrets.TOKEN }}
+          CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+          DEBUG_MODE: "False"
+        run: |
+          # تشغيل السكربت مع xvfb-run لضمان عمل Chrome في بيئة headless
+          xvfb-run --auto-servernum --server-args='-screen 0 1024x768x24' python Bot.py
