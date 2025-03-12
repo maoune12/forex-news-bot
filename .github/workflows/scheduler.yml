@@ -1,11 +1,11 @@
-name: Run Discord Bot
+name: Run Discord Bot (JSON Version)
 
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
   schedule:
-    - cron: "0 * * * 1-5"  # Run every hour Monday-Friday
+    - cron: "0 * * * 1-5"
 
 jobs:
   run-bot:
@@ -13,47 +13,17 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
-
       - name: Set up Python 3.9
         uses: actions/setup-python@v2
         with:
-          python-version: '3.9'
-
+          python-version: "3.9"
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y unzip jq
           python -m pip install --upgrade pip
-          pip install discord.py requests beautifulsoup4 selenium gdown
-
-      - name: Download and install Google Chrome for Testing
-        run: |
-          LATEST_VERSION=$(curl -s https://googlechromelabs.github.io/chrome-for-testing/latest-versions-per-milestone.json | jq -r '.milestones."134".version')
-          wget https://storage.googleapis.com/chrome-for-testing-public/$LATEST_VERSION/linux64/chrome-linux64.zip -O chrome.zip
-          unzip chrome.zip -d chrome_temp
-          CHROME_PATH=$(find chrome_temp -type f -name chrome | head -n 1)
-          sudo mv "$CHROME_PATH" /usr/local/bin/google-chrome
-          sudo chmod +x /usr/local/bin/google-chrome
-          rm -rf chrome.zip chrome_temp
-          echo "Installed Chrome version:"
-          /usr/local/bin/google-chrome --version
-
-      - name: Download and install ChromeDriver for Testing
-        run: |
-          LATEST_VERSION=$(curl -s https://googlechromelabs.github.io/chrome-for-testing/latest-versions-per-milestone.json | jq -r '.milestones."134".version')
-          wget https://storage.googleapis.com/chrome-for-testing-public/$LATEST_VERSION/linux64/chromedriver-linux64.zip -O chromedriver.zip
-          unzip chromedriver.zip -d chromedriver_temp
-          CHROMEDRIVER_PATH=$(find chromedriver_temp -type f -name chromedriver | head -n 1)
-          sudo mv "$CHROMEDRIVER_PATH" /usr/local/bin/chromedriver
-          sudo chmod +x /usr/local/bin/chromedriver
-          rm -rf chromedriver.zip chromedriver_temp
-          echo "Installed ChromeDriver version:"
-          chromedriver --version
-
-      - name: Run Discord Bot with xvfb
+          pip install discord.py requests
+      - name: Run Discord Bot
         env:
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
-          DEBUG_MODE: "False"
-        run: |
-          xvfb-run --auto-servernum --server-args='-screen 0 1024x768x24' python bot.py
+          DEBUG_MODE: "True"
+        run: python bot.py
