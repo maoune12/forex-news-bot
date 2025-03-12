@@ -9,8 +9,6 @@ import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-# نعتمد على Selenium القياسي مع chromedriver_autoinstaller فقط
-import selenium
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -18,10 +16,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
 
-import chromedriver_autoinstaller
-
-# قراءة المتغيرات من البيئة (GitHub Secrets)
-TOKEN = os.getenv("DISCORD_BOT_TOKEN")   # يُحدد في Secrets
+# قراءة الأسرار من المتغيرات
+TOKEN = os.getenv("DISCORD_BOT_TOKEN")   # من Secrets
 CHANNEL_ID = os.getenv("CHANNEL_ID", "0")
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False") == "True"
 
@@ -135,13 +131,12 @@ def parse_value(s):
 
 def scrape_forexfactory():
     """
-    يجمع الأخبار من موقع forexfactory.
-    إذا كانت خانة التاريخ أو الوقت تحتوي على "n/a" أو "لا يوجد" أو قيمة غير وقت حقيقي (لا تحتوي على ":")
-    يتم استخدام آخر قيمة صالحة. إذا فشل التحليل، يتم تعيين event_dt إلى None.
+    يحاول أولاً الحصول على الصفحة عبر requests.
+    إن فشل (403 مثلاً)، يستخدم Selenium مع chromedriver المثبت في /usr/local/bin/chromedriver
     """
     url = "https://www.forexfactory.com/calendar"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.6998.88 Safari/537.36",
         "Accept-Language": "en-US,en;q=0.9",
         "Referer": "https://www.google.com/",
         "Connection": "keep-alive"
@@ -158,11 +153,11 @@ def scrape_forexfactory():
         print(f"⚠️ Requests failed: {e}")
 
     if html is None:
-        # استخدام Selenium القياسي كخيار احتياطي
+        # Selenium fallback
         try:
             print("Using standard Selenium fallback.")
             chrome_options = get_common_chrome_options()
-            driver_path = chromedriver_autoinstaller.install()
+            driver_path = "/usr/local/bin/chromedriver"  # تم تثبيته في Workflow
             service = Service(driver_path)
             driver = webdriver.Chrome(service=service, options=chrome_options)
             driver.get(url)
@@ -191,7 +186,6 @@ def scrape_forexfactory():
     last_time = None
 
     for row in all_rows:
-        # التعامل مع خانة التاريخ
         date_cell = row.select_one("td.calendar__date")
         if date_cell:
             cell_text = date_cell.get_text(strip=True)
@@ -206,11 +200,9 @@ def scrape_forexfactory():
         if not current_day:
             continue
 
-        # التعامل مع خانة الوقت
         time_elem = row.select_one("td.calendar__time")
         if time_elem:
             cell_text = time_elem.get_text(strip=True)
-            # إذا لم يحتوي على ":" أو كانت القيمة غير صالحة
             if cell_text.lower() in ["n/a", "لا يوجد"] or ":" not in cell_text:
                 row_time = last_time
             else:
@@ -274,8 +266,8 @@ def scrape_forexfactory():
 
 def analyze_news(news_data):
     messages = []
-    moderate_threshold = 1.0   # نسبة الخبر المعتدل
-    strong_threshold = 3.0     # نسبة الخبر القوي
+    moderate_threshold = 1.0
+    strong_threshold = 3.0
     
     for idx, news in enumerate(news_data, start=1):
         actual_str = news["actual"] if news["actual"] != "N/A" else "لا يوجد"
@@ -390,7 +382,6 @@ class MyClient(discord.Client):
         else:
             print("❌ Channel not found!")
         
-        # تنفيذ المهمة مرة واحدة ثم إنهاء الاتصال
         if DEBUG_MODE:
             await debug_show_events()
         else:
@@ -401,23 +392,14 @@ class MyClient(discord.Client):
                 news_messages = analyze_news(ready_news)
                 for msg in news_messages:
                     await channel.send(msg)
+        
+        # إنهاء الاتصال بعد تنفيذ المهمة
         await self.close()
     
     async def on_message(self, message):
-        if message.author == self.user:
-            return
-        if message.channel.id != CHANNEL_ID:
-            return
-        if message.content.startswith("!news"):
-            news_data = await asyncio.to_thread(scrape_forexfactory)
-            high_news = filter_high_impact(news_data)
-            ready_news = filter_within_one_hour(high_news)
-            if not ready_news:
-                await message.channel.send("❌ لا توجد أخبار عالية التأثير خلال الساعة القادمة.")
-                return
-            news_messages = analyze_news(ready_news)
-            for msg in news_messages:
-                await message.channel.send(msg)
+        # في هذا السيناريو البوت ephemeral فلن يقرأ الرسائل لأنه يغلق بسرعة
+        # لكن إن أردت تجربته محلياً يمكنك تركه
+        pass
 
 client = MyClient(intents=intents)
 if not TOKEN or TOKEN.strip() == "":
