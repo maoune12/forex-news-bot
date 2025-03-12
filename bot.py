@@ -9,7 +9,7 @@ import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-# استخدام chromedriver_autoinstaller لتثبيت الإصدار المطابق تلقائيًا
+# استخدام chromedriver_autoinstaller لتنزيل الإصدار المناسب تلقائيًا
 import chromedriver_autoinstaller
 
 from selenium import webdriver
@@ -157,13 +157,12 @@ def scrape_forexfactory():
         print(f"⚠️ Requests failed: {e}")
 
     if html is None:
-        # استخدام Selenium كخيار احتياطي
         try:
             print("Using standard Selenium fallback.")
             chrome_options = get_common_chrome_options()
-            # استخدم chromedriver_autoinstaller لتثبيت الإصدار المناسب تلقائيًا
-            chromedriver_autoinstaller.install()  
-            service = Service()  # ستستخدم chromedriver الموجود في PATH
+            # تثبيت ChromeDriver المطابق تلقائيًا
+            chromedriver_autoinstaller.install()
+            service = Service()  # chromedriver_autoinstaller يضع chromedriver في PATH
             driver = webdriver.Chrome(service=service, options=chrome_options)
             driver.get(url)
             slow_scroll(driver, step=500, delay=1, down_iterations=5, up_iterations=5)
