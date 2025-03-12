@@ -29,7 +29,7 @@ intents = discord.Intents.default()
 
 def get_common_chrome_options():
     options = Options()
-    # تحديد موقع ملف Chrome الذي ثبتناه
+    # تعيين موقع Chrome الذي ثبتناه
     options.binary_location = "/usr/local/bin/google-chrome"
     if DEBUG_MODE:
         options.headless = False
@@ -40,7 +40,6 @@ def get_common_chrome_options():
     options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option("useAutomationExtension", False)
-    # تم إزالة خيار --user-data-dir لأنه غير مطلوب
     return options
 
 def slow_scroll(driver, step=500, delay=1, down_iterations=5, up_iterations=5):
