@@ -5,7 +5,7 @@ on:
     branches: [ main ]
   workflow_dispatch:
   schedule:
-    - cron: "0 * * * 1-5"  # تشغيل كل ساعة من الاثنين إلى الجمعة
+    - cron: "0 * * * 1-5"  # Run every hour Monday-Friday
 
 jobs:
   run-bot:
