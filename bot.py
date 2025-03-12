@@ -8,7 +8,7 @@ import asyncio
 import time
 from datetime import datetime, timedelta
 
-# استخدام chromedriver_autoinstaller لتحديد الإصدار الأقرب تلقائيًا
+# استخدام chromedriver_autoinstaller للعثور على الإصدار المناسب تلقائيًا
 import chromedriver_autoinstaller
 
 from selenium import webdriver
@@ -156,7 +156,7 @@ def scrape_forexfactory():
         try:
             print("Using standard Selenium fallback.")
             chrome_options = get_common_chrome_options()
-            # استخدم chromedriver_autoinstaller لتثبيت الإصدار المناسب تلقائيًا
+            # تثبيت ChromeDriver المناسب تلقائيًا (سيبحث عن إصدار Chrome المثبت ويحمّله إذا لم يكن موجودًا)
             driver_path = chromedriver_autoinstaller.install()
             if DEBUG_MODE:
                 print("chromedriver_autoinstaller installed driver at:", driver_path)
