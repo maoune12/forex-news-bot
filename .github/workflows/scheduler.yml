@@ -26,9 +26,8 @@ jobs:
 
       - name: Run Discord Bot with xvfb (if needed)
         env:
-          TOKEN: ${{ secrets.TOKEN }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
           DEBUG_MODE: "False"
         run: |
-          # تشغيل السكربت مع xvfb-run لضمان عمل Chrome في بيئة headless
           xvfb-run --auto-servernum --server-args='-screen 0 1024x768x24' python bot.py
