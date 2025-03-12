@@ -5,7 +5,7 @@ on:
     branches: [ main ]
   workflow_dispatch:
   schedule:
-    - cron: "*/3 * * * *"   # تشغيل كل 3 دقائق (للتجربة)
+    - cron: "*/5 * * * *"  # تشغيل كل 5 دقائق
 
 jobs:
   run-bot:
