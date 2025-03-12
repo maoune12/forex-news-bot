@@ -50,13 +50,15 @@ def slow_scroll(driver, step=500, delay=1, down_iterations=5, up_iterations=5):
     for i in range(down_iterations):
         driver.execute_script(f"window.scrollBy(0, {step});")
         time.sleep(delay)
+        offset = driver.execute_script("return window.pageYOffset;")
         if DEBUG_MODE:
-            print(f"Down scroll {i+1} done.")
+            print(f"Down scroll {i+1} done. pageYOffset = {offset}")
     for i in range(up_iterations):
         driver.execute_script(f"window.scrollBy(0, -{step});")
         time.sleep(delay)
+        offset = driver.execute_script("return window.pageYOffset;")
         if DEBUG_MODE:
-            print(f"Up scroll {i+1} done.")
+            print(f"Up scroll {i+1} done. pageYOffset = {offset}")
     if DEBUG_MODE:
         final_pos = driver.execute_script("return window.pageYOffset;")
         print("Slow scroll completed. Final page Y-offset:", final_pos)
@@ -160,15 +162,23 @@ def scrape_forexfactory():
         try:
             print("Using standard Selenium fallback.")
             chrome_options = get_common_chrome_options()
-            # تثبيت ChromeDriver المطابق تلقائيًا
+            # تثبيت ChromeDriver المناسب تلقائيًا
             chromedriver_autoinstaller.install()
-            service = Service()  # chromedriver_autoinstaller يضع chromedriver في PATH
+            service = Service()  # سيستخدم chromedriver الموجود في PATH
             driver = webdriver.Chrome(service=service, options=chrome_options)
             driver.get(url)
-            slow_scroll(driver, step=500, delay=1, down_iterations=5, up_iterations=5)
+            # تنفيذ تمرير كامل للصفحة للتأكد من تحميل المحتوى
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(2)
+            driver.execute_script("window.scrollTo(0, 0);")
+            time.sleep(2)
+            # عرض قيمة window.pageYOffset للتأكد من أن الصفحة تحركت
+            offset = driver.execute_script("return window.pageYOffset;")
+            if DEBUG_MODE:
+                print("Page Y-offset after full scroll:", offset)
             print("Waiting for calendar row element (standard Selenium)...")
-            WebDriverWait(driver, 45).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "tr.calendar__row:has(td.calendar__currency)"))
+            WebDriverWait(driver, 60).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "td.calendar__currency"))
             )
             html = driver.page_source
             driver.quit()
