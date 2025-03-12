@@ -5,7 +5,7 @@ on:
     branches: [ main ]
   workflow_dispatch:
   schedule:
-    - cron: "*/5 * * * *"  # تشغيل كل 5 دقائق
+    - cron: "0 * * * 1-5"  # تشغيل كل ساعة (عند الدقيقة 0) من الاثنين إلى الجمعة
 
 jobs:
   run-bot:
