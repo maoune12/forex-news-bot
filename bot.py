@@ -263,7 +263,7 @@ def analyze_news(news_data):
     print(f"Next event at {next_event['parsed_time']} (in {time_diff/60:.2f} minutes).")
 
     # إذا تبقى ساعة أو أقل
-    if time_diff <= 3600:
+    if time_diff <= 360000:
         actual_str = next_event["actual"] if next_event["actual"] != "N/A" else "لا يوجد"
         forecast_str = next_event["forecast"] if next_event["forecast"] != "N/A" else "لا يوجد"
         previous_str = next_event["previous"] if next_event["previous"] != "N/A" else "لا يوجد"
