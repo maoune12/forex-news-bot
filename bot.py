@@ -1,417 +1,53 @@
-# -*- coding: utf-8 -*-
-import os
-import discord
-import requests
-from bs4 import BeautifulSoup
-import re
-import asyncio
-import time
-from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
+name: Run Discord Bot
 
-# نستخدم chromedriver_autoinstaller لضمان تنزيل الإصدار المناسب تلقائيًا
-import chromedriver_autoinstaller
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 * * * 1-5"  # تشغيل كل ساعة من الاثنين إلى الجمعة
 
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.service import Service
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
 
-# قراءة المتغيرات من البيئة (GitHub Secrets)
-TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-CHANNEL_ID = os.getenv("CHANNEL_ID", "0")
-DEBUG_MODE = os.getenv("DEBUG_MODE", "False") == "True"
+      - name: Install Google Chrome stable (v134.0.6998.88-1)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg
+          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list'
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable=134.0.6998.88-1
+          google-chrome --version
 
-try:
-    CHANNEL_ID = int(CHANNEL_ID)
-except ValueError:
-    CHANNEL_ID = 0
+      - name: Install pinned ChromeDriver (v134.0.6998.88)
+        run: |
+          CHROMEDRIVER_VERSION="134.0.6998.88"
+          wget https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip
+          unzip chromedriver_linux64.zip
+          sudo mv chromedriver /usr/local/bin/chromedriver
+          sudo chmod +x /usr/local/bin/chromedriver
+          chromedriver --version
 
-intents = discord.Intents.default()
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
 
-def get_common_chrome_options():
-    options = Options()
-    if DEBUG_MODE:
-        options.headless = False
-    else:
-        options.add_argument("--headless=new")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option("useAutomationExtension", False)
-    return options
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # نحذف chromedriver_autoinstaller لأننا سنستخدم الإصدار المثبت يدويًا
+          pip install discord.py requests beautifulsoup4 selenium
 
-def slow_scroll(driver, step=500, delay=1, down_iterations=5, up_iterations=5):
-    if DEBUG_MODE:
-        print("Starting slow scroll.")
-    for i in range(down_iterations):
-        driver.execute_script(f"window.scrollBy(0, {step});")
-        time.sleep(delay)
-        offset = driver.execute_script("return window.pageYOffset;")
-        if DEBUG_MODE:
-            print(f"Down scroll {i+1} done. pageYOffset = {offset}")
-    for i in range(up_iterations):
-        driver.execute_script(f"window.scrollBy(0, -{step});")
-        time.sleep(delay)
-        offset = driver.execute_script("return window.pageYOffset;")
-        if DEBUG_MODE:
-            print(f"Up scroll {i+1} done. pageYOffset = {offset}")
-    if DEBUG_MODE:
-        final_pos = driver.execute_script("return window.pageYOffset;")
-        print("Slow scroll completed. Final page Y-offset:", final_pos)
-
-def fix_date_string(s):
-    s = s.strip()
-    if len(s) >= 7 and s[0:3].isalpha() and s[3] == " " and s[4:7].isalpha():
-        return s[0:3] + s[4:]
-    return s
-
-def format_arabic_date(dt, all_day=False):
-    weekdays = {
-        "Sun": "الأحد", "Mon": "الاثنين", "Tue": "الثلاثاء",
-        "Wed": "الأربعاء", "Thu": "الخميس", "Fri": "الجمعة", "Sat": "السبت"
-    }
-    months = {
-        "Jan": "يناير", "Feb": "فبراير", "Mar": "مارس", "Apr": "أبريل",
-        "May": "مايو", "Jun": "يونيو", "Jul": "يوليو", "Aug": "أغسطس",
-        "Sep": "سبتمبر", "Oct": "أكتوبر", "Nov": "نوفمبر", "Dec": "ديسمبر"
-    }
-    weekday_en = dt.strftime("%a")
-    month_en = dt.strftime("%b")
-    day = dt.strftime("%d")
-    year = dt.strftime("%Y")
-    if not all_day:
-        time_str = dt.strftime("%I:%M").lstrip("0")
-        ampm = dt.strftime("%p")
-        ampm_ar = "صباحًا" if ampm == "AM" else "مساءً"
-        time_output = f"{time_str} {ampm_ar}"
-    else:
-        time_output = "طوال اليوم"
-    return f"{weekdays.get(weekday_en, weekday_en)} {int(day)} {months.get(month_en, month_en)} {year} {time_output}"
-
-def convert_to_arabic_date(raw_date_time):
-    raw_date_time = raw_date_time.strip()
-    if raw_date_time[:3] not in ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]:
-        return raw_date_time
-    if "All Day" in raw_date_time or "all day" in raw_date_time.lower():
-        date_part = raw_date_time.lower().replace("all day", "").strip()
-        date_part = fix_date_string(date_part)
-        current_year = datetime.now().year
-        try:
-            dt = datetime.strptime(f"{date_part} {current_year}", "%a%b %d %Y")
-        except Exception:
-            return raw_date_time
-        return format_arabic_date(dt, all_day=True)
-    raw_date_time = fix_date_string(raw_date_time)
-    has_time = ":" in raw_date_time
-    current_year = datetime.now().year
-    if not has_time:
-        try:
-            dt = datetime.strptime(f"{raw_date_time} {current_year}", "%a%b %d %Y")
-        except Exception:
-            return raw_date_time
-        return format_arabic_date(dt, True)
-    else:
-        try:
-            dt = datetime.strptime(f"{raw_date_time} {current_year}", "%a%b %d %I:%M%p %Y")
-        except Exception:
-            return raw_date_time
-        return format_arabic_date(dt, False)
-
-def parse_value(s):
-    s = s.strip()
-    if s.endswith("M"):
-        s = s.replace("M", "")
-    elif s.endswith("K"):
-        s = s.replace("K", "")
-    elif s.endswith("B"):
-        s = s.replace("B", "")
-    try:
-        return float(s)
-    except ValueError:
-        return None
-
-def scrape_forexfactory():
-    """
-    يجمع الأخبار من موقع forexfactory.
-    إذا كانت خانة التاريخ أو الوقت تحتوي على "n/a" أو "لا يوجد" أو قيمة غير وقت حقيقي (لا تحتوي على ":")
-    يتم استخدام آخر قيمة صالحة. إذا فشل التحليل، يتم تعيين event_dt إلى None.
-    """
-    url = "https://www.forexfactory.com/calendar"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.6998.89 Safari/537.36",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Referer": "https://www.google.com/",
-        "Connection": "keep-alive"
-    }
-    html = None
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        if response.status_code == 200:
-            response.encoding = "utf-8"
-            html = response.text
-        else:
-            raise Exception(f"Status code: {response.status_code}")
-    except Exception as e:
-        print(f"⚠️ Requests failed: {e}")
-
-    if html is None:
-        try:
-            print("Using standard Selenium fallback.")
-            chrome_options = get_common_chrome_options()
-            # تثبيت ChromeDriver المناسب تلقائيًا
-            chromedriver_autoinstaller.install()
-            service = Service()  # chromedriver الموجود في PATH
-            driver = webdriver.Chrome(service=service, options=chrome_options)
-            driver.get(url)
-            # تنفيذ تمرير كامل للصفحة والتأكد من حركة الصفحة
-            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(2)
-            driver.execute_script("window.scrollTo(0, 0);")
-            time.sleep(2)
-            offset = driver.execute_script("return window.pageYOffset;")
-            if DEBUG_MODE:
-                print("Page Y-offset after full scroll:", offset)
-            print("Waiting for calendar row element (standard Selenium)...")
-            WebDriverWait(driver, 60).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "td.calendar__currency"))
-            )
-            html = driver.page_source
-            driver.quit()
-        except Exception as se:
-            print(f"⚠️ Selenium fallback failed: {se}")
-            return []
-
-    if not html:
-        return []
-
-    soup = BeautifulSoup(html, "html.parser")
-    all_rows = soup.select("tr.calendar__row")
-    if DEBUG_MODE:
-        print(f"Processing {len(all_rows)} calendar rows.")
-
-    news_data = []
-    current_year = datetime.now().year
-    last_date = None
-    last_time = None
-
-    for row in all_rows:
-        date_cell = row.select_one("td.calendar__date")
-        if date_cell:
-            cell_text = date_cell.get_text(strip=True)
-            if cell_text.lower() in ["n/a", "لا يوجد"]:
-                current_day = last_date
-            else:
-                current_day = fix_date_string(cell_text)
-                last_date = current_day
-        else:
-            current_day = last_date
-
-        if not current_day:
-            continue
-
-        time_elem = row.select_one("td.calendar__time")
-        if time_elem:
-            cell_text = time_elem.get_text(strip=True)
-            if cell_text.lower() in ["n/a", "لا يوجد"] or ":" not in cell_text:
-                row_time = last_time
-            else:
-                row_time = cell_text
-                last_time = row_time
-        else:
-            row_time = last_time
-
-        if not row_time or row_time.lower() in ["all day"]:
-            continue
-
-        try:
-            event_dt = datetime.strptime(f"{current_day} {row_time} {current_year}", "%a%b %d %I:%M%p %Y")
-        except Exception as e:
-            if DEBUG_MODE:
-                print(f"⚠️ Failed to parse datetime for row: {e}")
-            event_dt = None
-
-        currency_elem = row.select_one("td.calendar__currency")
-        if not currency_elem:
-            continue
-
-        event_elem = row.select_one("td.calendar__event")
-        event = event_elem.get_text(strip=True) if event_elem else "لا يوجد"
-
-        impact_elem = row.select_one("td.calendar__impact span")
-        if impact_elem:
-            impact = impact_elem.get("title", "").strip() or impact_elem.text.strip()
-        else:
-            impact = "Low Impact Expected"
-
-        if DEBUG_MODE:
-            print(f"Row date and time: {current_day} {row_time}")
-            print("Row impact text:", impact)
-
-        actual_elem = row.select_one("td.calendar__actual")
-        actual = actual_elem.get_text(strip=True) if actual_elem else "لا يوجد"
-
-        forecast_elem = row.select_one("td.calendar__forecast")
-        forecast = forecast_elem.get_text(strip=True) if forecast_elem else "لا يوجد"
-        if forecast == "لا يوجد":
-            forecast = "لا توجد معلومات كافية في التأثير"
-
-        previous_elem = row.select_one("td.calendar__previous")
-        previous = previous_elem.get_text(strip=True) if previous_elem else "لا يوجد"
-
-        news_data.append({
-            "date_time": f"{current_day} {row_time}",
-            "event_dt": event_dt,
-            "currency": currency_elem.get_text(strip=True),
-            "event": event,
-            "impact": impact,
-            "actual": actual,
-            "forecast": forecast,
-            "previous": previous
-        })
-    
-    if DEBUG_MODE:
-        print(f"Found {len(news_data)} news items in total.")
-    return news_data
-
-def analyze_news(news_data):
-    messages = []
-    moderate_threshold = 1.0
-    strong_threshold = 3.0
-    
-    for idx, news in enumerate(news_data, start=1):
-        actual_str = news["actual"] if news["actual"] != "N/A" else "لا يوجد"
-        forecast_str = news["forecast"] if news["forecast"] != "N/A" else "لا يوجد"
-        previous_str = news["previous"] if news["previous"] != "N/A" else "لا يوجد"
-        
-        if (not actual_str.strip() or actual_str.strip() == "لا يوجد") and \
-           (not forecast_str.strip() or forecast_str.strip() == "لا يوجد") and \
-           (not previous_str.strip() or previous_str.strip() == "لا يوجد"):
-            sentiment = "لا يوجد بيانات"
-        else:
-            try:
-                actual_value = parse_value(actual_str) if actual_str.strip() and actual_str.strip() != "لا يوجد" else None
-            except ValueError:
-                actual_value = None
-            try:
-                forecast_value = parse_value(forecast_str) if forecast_str.strip() and forecast_str.strip() != "لا يوجد" else None
-            except ValueError:
-                forecast_value = None
-            try:
-                previous_value = parse_value(previous_str) if previous_str.strip() and previous_str.strip() != "لا يوجد" else None
-            except ValueError:
-                previous_value = None
-            
-            if actual_value is None or forecast_value is None or previous_value is None:
-                effective_diff = 0
-            else:
-                diff_forecast = ((actual_value - forecast_value) / forecast_value) * 100
-                diff_previous = ((actual_value - previous_value) / previous_value) * 100
-                effective_diff = (diff_forecast + diff_previous) / 2
-            
-            if abs(effective_diff) < moderate_threshold:
-                sentiment = "⚪ محايد"
-            elif effective_diff > 0:
-                if effective_diff >= strong_threshold:
-                    sentiment = "🔵 إيجابي (خبر قوي)"
-                else:
-                    sentiment = "🔵 إيجابي (خبر معتدل)"
-            else:
-                if effective_diff <= -strong_threshold:
-                    sentiment = "🔴 سلبي (خبر قوي)"
-                else:
-                    sentiment = "🔴 سلبي (خبر معتدل)"
-        
-        tag_str = "@everyone\n" if sentiment not in ["⚪ محايد", "لا يوجد بيانات"] else ""
-        arabic_full_date = convert_to_arabic_date(news.get("date_time", "لا يوجد"))
-        message = (
-            f"{tag_str}"
-            f"{idx}. {arabic_full_date}\n\n"
-            f"**{news['currency']} - {news['event']}**\n\n"
-            f"السابق: {previous_str}\n"
-            f"النتائج: {actual_str}\n"
-            f"التوقعات: {forecast_str}\n\n"
-            f"التأثير: {sentiment}\n"
-            f"{'-'*40}\n\n"
-        )
-        messages.append(message)
-    return messages
-
-def filter_high_impact(news_data):
-    return [news for news in news_data if "high" in news["impact"].lower()]
-
-def filter_within_one_hour(news_data):
-    now = datetime.now()
-    return [n for n in news_data if n["event_dt"] is not None and now <= n["event_dt"] <= now + timedelta(hours=1)]
-
-async def debug_show_events():
-    news_data = await asyncio.to_thread(scrape_forexfactory)
-    if not news_data:
-        print("❌ لا توجد أخبار.")
-        return
-    print("------- جميع الأخبار --------")
-    for news in news_data:
-        print(f"الحدث: {news['currency']} - {news['event']}")
-        print(f"وقت الحدث: {news['date_time']}")
-        print(f"نص التأثير: {news['impact']}")
-        print("-" * 40)
-    
-    high_news = filter_high_impact(news_data)
-    print(f"\n------- الأخبار ذات التأثير العالي: {len(high_news)} خبر -------")
-    now = datetime.now()
-    for news in high_news:
-        event_dt = news["event_dt"]
-        if event_dt:
-            delta = event_dt - now
-            hours, remainder = divmod(delta.seconds, 3600)
-            minutes = remainder // 60
-            total_hours = delta.days * 24 + hours
-            time_remaining = f"{total_hours} ساعة, {minutes} دقيقة" if delta.total_seconds() > 0 else "انتهى الوقت"
-        else:
-            time_remaining = "غير متوفر"
-        print("=" * 60)
-        print(f"الحدث: {news['currency']} - {news['event']}")
-        print(f"وقت الحدث: {news['date_time']}")
-        print(f"الوقت المتبقي: {time_remaining}")
-        if event_dt and event_dt > now and (delta.days == 0 and total_hours < 1):
-            print("هذا الخبر جاهز للإرسال (أقل من ساعة).")
-        else:
-            print("هذا الخبر غير جاهز للإرسال بعد.")
-        print("=" * 60)
-    ready_news = filter_within_one_hour(high_news)
-    print(f"\n------- الأخبار الجاهزة للإرسال: {len(ready_news)} خبر -------")
-    print("انتهاء التصحيح.")
-
-class MyClient(discord.Client):
-    async def on_ready(self):
-        print(f"✅ Logged in as {self.user}")
-        channel = self.get_channel(CHANNEL_ID)
-        if channel:
-            print(f"Channel found: {channel.name}")
-            await channel.send("🤖 **Forex News Bot is Running Ephemerally**")
-        else:
-            print("❌ Channel not found!")
-        
-        if DEBUG_MODE:
-            await debug_show_events()
-        else:
-            news_data = await asyncio.to_thread(scrape_forexfactory)
-            high_news = filter_high_impact(news_data)
-            ready_news = filter_within_one_hour(high_news)
-            if channel and ready_news:
-                news_messages = analyze_news(ready_news)
-                for msg in news_messages:
-                    await channel.send(msg)
-        await self.close()
-    
-    async def on_message(self, message):
-        pass
-
-client = MyClient(intents=intents)
-if not TOKEN or TOKEN.strip() == "":
-    print("❌ Discord bot token is missing or empty!")
-else:
-    client.run(TOKEN)
+      - name: Run Discord Bot with xvfb
+        env:
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+          DEBUG_MODE: "False"
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1024x768x24' python bot.py
