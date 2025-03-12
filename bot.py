@@ -7,9 +7,10 @@ import re
 import asyncio
 import time
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
 
-# نستخدم Selenium القياسي
+# استخدام chromedriver_autoinstaller لتحديد الإصدار الأقرب تلقائيًا
+import chromedriver_autoinstaller
+
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -17,6 +18,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
 
+# قراءة المتغيرات من البيئة (GitHub Secrets)
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID", "0")
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False") == "True"
@@ -154,7 +156,12 @@ def scrape_forexfactory():
         try:
             print("Using standard Selenium fallback.")
             chrome_options = get_common_chrome_options()
-            driver = webdriver.Chrome(options=chrome_options)  # يستخدم chromedriver الموجود في PATH
+            # استخدم chromedriver_autoinstaller لتثبيت الإصدار المناسب تلقائيًا
+            driver_path = chromedriver_autoinstaller.install()
+            if DEBUG_MODE:
+                print("chromedriver_autoinstaller installed driver at:", driver_path)
+            service = Service(driver_path)
+            driver = webdriver.Chrome(service=service, options=chrome_options)
             driver.get(url)
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             time.sleep(2)
