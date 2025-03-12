@@ -15,6 +15,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
 
+# قراءة المتغيرات من البيئة (GitHub Secrets)
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID", "0")
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False") == "True"
@@ -28,7 +29,7 @@ intents = discord.Intents.default()
 
 def get_common_chrome_options():
     options = Options()
-    # نحدد موقع ملف Google Chrome الذي قمنا بنقله
+    # تحديد موقع ملف Chrome الذي ثبتناه
     options.binary_location = "/usr/local/bin/google-chrome"
     if DEBUG_MODE:
         options.headless = False
@@ -39,6 +40,7 @@ def get_common_chrome_options():
     options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option("useAutomationExtension", False)
+    # تم إزالة خيار --user-data-dir لأنه غير مطلوب
     return options
 
 def slow_scroll(driver, step=500, delay=1, down_iterations=5, up_iterations=5):
@@ -47,14 +49,14 @@ def slow_scroll(driver, step=500, delay=1, down_iterations=5, up_iterations=5):
     for i in range(down_iterations):
         driver.execute_script(f"window.scrollBy(0, {step});")
         time.sleep(delay)
+        offset = driver.execute_script("return window.pageYOffset;")
         if DEBUG_MODE:
-            offset = driver.execute_script("return window.pageYOffset;")
             print(f"Down scroll {i+1} done. pageYOffset = {offset}")
     for i in range(up_iterations):
         driver.execute_script(f"window.scrollBy(0, -{step});")
         time.sleep(delay)
+        offset = driver.execute_script("return window.pageYOffset;")
         if DEBUG_MODE:
-            offset = driver.execute_script("return window.pageYOffset;")
             print(f"Up scroll {i+1} done. pageYOffset = {offset}")
     if DEBUG_MODE:
         final_pos = driver.execute_script("return window.pageYOffset;")
@@ -134,7 +136,7 @@ def parse_value(s):
 def scrape_forexfactory():
     url = "https://www.forexfactory.com/calendar"
     headers = {
-        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.6998.88 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.6998.89 Safari/537.36",
         "Accept-Language": "en-US,en;q=0.9",
         "Referer": "https://www.google.com/",
         "Connection": "keep-alive"
@@ -150,7 +152,6 @@ def scrape_forexfactory():
     except Exception as e:
         print(f"⚠️ Requests failed: {e}")
 
-    # إذا لم نستطع التحميل بـ requests، نجرب Selenium
     if html is None:
         try:
             print("Using standard Selenium fallback.")
@@ -162,6 +163,9 @@ def scrape_forexfactory():
             time.sleep(2)
             driver.execute_script("window.scrollTo(0, 0);")
             time.sleep(2)
+            offset = driver.execute_script("return window.pageYOffset;")
+            if DEBUG_MODE:
+                print("Page Y-offset after full scroll:", offset)
             print("Waiting for calendar row element (standard Selenium)...")
             WebDriverWait(driver, 60).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, "td.calendar__currency"))
