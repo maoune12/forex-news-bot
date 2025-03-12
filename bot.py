@@ -9,7 +9,7 @@ import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-# لا نستخدم chromedriver_autoinstaller
+# نستخدم Selenium القياسي
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -132,12 +132,9 @@ def parse_value(s):
         return None
 
 def scrape_forexfactory():
-    """
-    يجمع الأخبار من موقع forexfactory.
-    """
     url = "https://www.forexfactory.com/calendar"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.6998.88 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.6998.89 Safari/537.36",
         "Accept-Language": "en-US,en;q=0.9",
         "Referer": "https://www.google.com/",
         "Connection": "keep-alive"
@@ -157,16 +154,15 @@ def scrape_forexfactory():
         try:
             print("Using standard Selenium fallback.")
             chrome_options = get_common_chrome_options()
-            # نترك Selenium يختار chromedriver من PATH
-            driver = webdriver.Chrome(options=chrome_options)
+            driver = webdriver.Chrome(options=chrome_options)  # يستخدم chromedriver الموجود في PATH
             driver.get(url)
-
-            # نقوم بتمرير الصفحة
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             time.sleep(2)
             driver.execute_script("window.scrollTo(0, 0);")
             time.sleep(2)
-
+            offset = driver.execute_script("return window.pageYOffset;")
+            if DEBUG_MODE:
+                print("Page Y-offset after full scroll:", offset)
             print("Waiting for calendar row element (standard Selenium)...")
             WebDriverWait(driver, 60).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, "td.calendar__currency"))
