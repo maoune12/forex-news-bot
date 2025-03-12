@@ -21,30 +21,35 @@ jobs:
 
       - name: Install dependencies
         run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip
           python -m pip install --upgrade pip
-          pip install discord.py requests beautifulsoup4 selenium gdown
+          pip install discord.py requests beautifulsoup4 selenium
 
-      - name: Download and install Google Chrome from Google Drive
+      - name: Download and install Google Chrome for Testing (v134.0.6998.88)
         run: |
-          # رابط Google Drive للـ Chrome (ZIP)
-          gdown "https://drive.google.com/uc?id=1Id8uHs9l_YQNFXqTdl4zft2bElnl7mzc" -O chrome.zip
-          unzip chrome.zip -d chrome_temp
-          # نفترض أن الملف التنفيذي داخل chrome_temp يسمى "chrome" (يمكنك تعديل الاسم إذا كان مختلفًا)
-          sudo mv chrome_temp/chrome /usr/local/bin/google-chrome
+          wget https://storage.googleapis.com/chrome-for-testing-public/134.0.6998.88/linux64/chrome-linux64.zip
+          unzip chrome-linux64.zip -d chrome_temp
+          # البنية تكون عادة: chrome_temp/chrome-linux64/chrome-wrapper + chrome
+          ls -R chrome_temp
+          sudo mv chrome_temp/chrome-linux64/chrome /usr/local/bin/google-chrome
           sudo chmod +x /usr/local/bin/google-chrome
-          rm -rf chrome.zip chrome_temp
+          # (اختياري) قد تحتاج نقل ملف chrome-wrapper إذا أردت استخدامه
+          # sudo mv chrome_temp/chrome-linux64/chrome-wrapper /usr/local/bin/
+          # sudo chmod +x /usr/local/bin/chrome-wrapper
+          rm -rf chrome_temp chrome-linux64.zip
           echo "Installed Chrome version:"
           /usr/local/bin/google-chrome --version
 
-      - name: Download and install ChromeDriver from Google Drive
+      - name: Download and install ChromeDriver for Testing (v134.0.6998.88)
         run: |
-          # رابط Google Drive للـ ChromeDriver (ZIP)
-          gdown "https://drive.google.com/uc?id=1MOIBdxl9P1YCOdRphXCpUV1_O2_pNZJc" -O chromedriver.zip
-          unzip chromedriver.zip -d chromedriver_temp
-          # نفترض أن الملف التنفيذي داخل chromedriver_temp يسمى "chromedriver"
-          sudo mv chromedriver_temp/chromedriver /usr/local/bin/chromedriver
+          wget https://storage.googleapis.com/chrome-for-testing-public/134.0.6998.88/linux64/chromedriver-linux64.zip
+          unzip chromedriver-linux64.zip -d chromedriver_temp
+          # قد تجد الملف التنفيذي في chromedriver_temp/chromedriver-linux64/chromedriver
+          ls -R chromedriver_temp
+          sudo mv chromedriver_temp/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver
           sudo chmod +x /usr/local/bin/chromedriver
-          rm -rf chromedriver.zip chromedriver_temp
+          rm -rf chromedriver_temp chromedriver-linux64.zip
           echo "Installed ChromeDriver version:"
           chromedriver --version
 
