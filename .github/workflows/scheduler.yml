@@ -22,36 +22,28 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y unzip
+          sudo apt-get install -y unzip jq
           python -m pip install --upgrade pip
           pip install discord.py requests beautifulsoup4 selenium gdown
 
-      - name: Download and install Google Chrome for Testing (v134.0.6998.88)
+      - name: Download and install Google Chrome for Testing
         run: |
-          wget https://storage.googleapis.com/chrome-for-testing-public/134.0.6998.88/linux64/chrome-linux64.zip -O chrome.zip
+          LATEST_VERSION=$(curl -s https://googlechromelabs.github.io/chrome-for-testing/latest-versions-per-milestone.json | jq -r '.milestones."134".version')
+          wget https://storage.googleapis.com/chrome-for-testing-public/$LATEST_VERSION/linux64/chrome-linux64.zip -O chrome.zip
           unzip chrome.zip -d chrome_temp
           CHROME_PATH=$(find chrome_temp -type f -name chrome | head -n 1)
-          if [ -z "$CHROME_PATH" ]; then
-            echo "Chrome binary not found in the extracted folder."
-            exit 1
-          fi
-          echo "Found Chrome binary at: $CHROME_PATH"
           sudo mv "$CHROME_PATH" /usr/local/bin/google-chrome
           sudo chmod +x /usr/local/bin/google-chrome
           rm -rf chrome.zip chrome_temp
           echo "Installed Chrome version:"
           /usr/local/bin/google-chrome --version
 
-      - name: Download and install ChromeDriver for Testing (v134.0.6998.88)
+      - name: Download and install ChromeDriver for Testing
         run: |
-          wget https://storage.googleapis.com/chrome-for-testing-public/134.0.6998.88/linux64/chromedriver-linux64.zip -O chromedriver.zip
+          LATEST_VERSION=$(curl -s https://googlechromelabs.github.io/chrome-for-testing/latest-versions-per-milestone.json | jq -r '.milestones."134".version')
+          wget https://storage.googleapis.com/chrome-for-testing-public/$LATEST_VERSION/linux64/chromedriver-linux64.zip -O chromedriver.zip
           unzip chromedriver.zip -d chromedriver_temp
           CHROMEDRIVER_PATH=$(find chromedriver_temp -type f -name chromedriver | head -n 1)
-          if [ -z "$CHROMEDRIVER_PATH" ]; then
-            echo "ChromeDriver binary not found in the extracted folder."
-            exit 1
-          fi
-          echo "Found ChromeDriver binary at: $CHROMEDRIVER_PATH"
           sudo mv "$CHROMEDRIVER_PATH" /usr/local/bin/chromedriver
           sudo chmod +x /usr/local/bin/chromedriver
           rm -rf chromedriver.zip chromedriver_temp
@@ -62,6 +54,6 @@ jobs:
         env:
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
-          DEBUG_MODE: "True"
+          DEBUG_MODE: "False"
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1024x768x24' python bot.py
