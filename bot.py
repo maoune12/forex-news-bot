@@ -33,9 +33,13 @@ def debug_print(msg):
 
 def get_common_chrome_options():
     options = Options()
+    # تعيين موقع ملف Chrome المثبت
     options.binary_location = "/usr/local/bin/google-chrome"
     debug_print("Setting binary location to /usr/local/bin/google-chrome")
-    # لم نستخدم خيار --user-data-dir لتجنب تعارض الجلسات
+    # إضافة دليل بيانات فريد لتجنب تعارض الجلسات
+    unique_dir = f"/tmp/chrome-profile-{int(time.time())}"
+    options.add_argument(f"--user-data-dir={unique_dir}")
+    debug_print(f"Using unique user-data-dir: {unique_dir}")
     if DEBUG_MODE:
         options.headless = False
     else:
@@ -381,7 +385,7 @@ class MyClient(discord.Client):
         channel = self.get_channel(CHANNEL_ID)
         if channel:
             print(f"Channel found: {channel.name}")
-            await channel.send("🤖 **Forex News Bot is Running Ephemerally**")
+            await channel.send("🤖 **Forex News Bot is Running Ephemerally (Debug Mode)**")
         else:
             print("❌ Channel not found!")
         
