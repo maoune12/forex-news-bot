@@ -14,20 +14,68 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      - name: Install Google Chrome stable (v134.0.6998.88-1)
+      - name: Determine latest matching version
+        id: latest_version
         run: |
+          import requests, re, sys
+          def fetch_chrome_versions():
+              url = "https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/"
+              resp = requests.get(url, timeout=10)
+              resp.raise_for_status()
+              # نبحث عن أسماء ملفات مثل: google-chrome-stable_134.0.6998.88-1_amd64.deb
+              pattern = re.compile(r'google-chrome-stable_(\d+\.\d+\.\d+\.\d+)-\d+_amd64\.deb')
+              versions = set()
+              for line in resp.text.splitlines():
+                  match = pattern.search(line)
+                  if match:
+                      ver = match.group(1)
+                      versions.add(ver)
+              return versions
+
+          def fetch_chromedriver_versions():
+              url = "https://chromedriver.storage.googleapis.com/"
+              resp = requests.get(url, timeout=10)
+              resp.raise_for_status()
+              # نبحث عن إصدارات مثل: <Key>134.0.6998.88/chromedriver_linux64.zip</Key>
+              pattern = re.compile(r'<Key>([\d\.]+)/chromedriver_linux64\.zip</Key>')
+              versions = set()
+              for line in resp.text.splitlines():
+                  match = pattern.search(line)
+                  if match:
+                      ver = match.group(1)
+                      versions.add(ver)
+              return versions
+
+          def version_tuple(ver_str):
+              return tuple(map(int, ver_str.split(".")))
+          
+          chrome_versions = fetch_chrome_versions()
+          chromedriver_versions = fetch_chromedriver_versions()
+          intersection = chrome_versions.intersection(chromedriver_versions)
+          if not intersection:
+              print("No matching version found", file=sys.stderr)
+              sys.exit(1)
+          latest = max(intersection, key=version_tuple)
+          print(f"Latest matching version: {latest}")
+          print(f"::set-output name=version::{latest}")
+        shell: python
+
+      - name: Install Google Chrome stable and ChromeDriver
+        run: |
+          VERSION=${{ steps.latest_version.outputs.version }}
+          echo "Latest matching version is $VERSION"
           sudo apt-get update
-          sudo apt-get install -y wget gnupg
+          sudo apt-get install -y wget gnupg unzip
+          # إضافة مفتاح ومستودع Google Chrome
           wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
-          sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list'
+          sudo sh -c "echo 'deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main' >> /etc/apt/sources.list.d/google-chrome.list"
           sudo apt-get update
-          sudo apt-get install -y google-chrome-stable=134.0.6998.88-1
+          # تثبيت Google Chrome stable بالإصدار المطلوب (قد يكون الإصدار في المستودع مطابقًا للرقم الأساسي مع -1)
+          sudo apt-get install -y google-chrome-stable=${VERSION}-1
           google-chrome --version
 
-      - name: Install pinned ChromeDriver (v134.0.6998.88)
-        run: |
-          CHROMEDRIVER_VERSION="134.0.6998.88"
-          wget https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip
+          # تحميل وتثبيت ChromeDriver المطابق
+          wget https://chromedriver.storage.googleapis.com/${VERSION}/chromedriver_linux64.zip
           unzip chromedriver_linux64.zip
           sudo mv chromedriver /usr/local/bin/chromedriver
           sudo chmod +x /usr/local/bin/chromedriver
@@ -41,8 +89,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          # لا نثبت chromedriver_autoinstaller
-          pip install discord.py requests beautifulsoup4 selenium beautifulsoup4
+          pip install discord.py requests beautifulsoup4 selenium
 
       - name: Run Discord Bot with xvfb
         env:
