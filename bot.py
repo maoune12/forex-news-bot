@@ -9,7 +9,7 @@ import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-# استخدام chromedriver_autoinstaller لتنزيل الإصدار المناسب تلقائيًا
+# نستخدم chromedriver_autoinstaller لضمان تنزيل الإصدار المناسب تلقائيًا
 import chromedriver_autoinstaller
 
 from selenium import webdriver
@@ -164,15 +164,14 @@ def scrape_forexfactory():
             chrome_options = get_common_chrome_options()
             # تثبيت ChromeDriver المناسب تلقائيًا
             chromedriver_autoinstaller.install()
-            service = Service()  # سيستخدم chromedriver الموجود في PATH
+            service = Service()  # chromedriver الموجود في PATH
             driver = webdriver.Chrome(service=service, options=chrome_options)
             driver.get(url)
-            # تنفيذ تمرير كامل للصفحة للتأكد من تحميل المحتوى
+            # تنفيذ تمرير كامل للصفحة والتأكد من حركة الصفحة
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             time.sleep(2)
             driver.execute_script("window.scrollTo(0, 0);")
             time.sleep(2)
-            # عرض قيمة window.pageYOffset للتأكد من أن الصفحة تحركت
             offset = driver.execute_script("return window.pageYOffset;")
             if DEBUG_MODE:
                 print("Page Y-offset after full scroll:", offset)
