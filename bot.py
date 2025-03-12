@@ -15,7 +15,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
 
-# قراءة المتغيرات من البيئة (GitHub Secrets)
+# قراءة المتغيرات من البيئة
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID", "0")
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False") == "True"
@@ -36,7 +36,7 @@ def get_common_chrome_options():
     # تحديد موقع ملف Chrome الذي ثبتناه
     options.binary_location = "/usr/local/bin/google-chrome"
     debug_print("Setting binary location to /usr/local/bin/google-chrome")
-    # إزالة خيار --user-data-dir لتجنب التعارض
+    # لم نستخدم خيار --user-data-dir لتجنب تعارض الجلسات
     if DEBUG_MODE:
         options.headless = False
     else:
