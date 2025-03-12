@@ -9,6 +9,9 @@ import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+# استخدام chromedriver_autoinstaller لتثبيت الإصدار المطابق تلقائيًا
+import chromedriver_autoinstaller
+
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -16,8 +19,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
 
-# قراءة الأسرار من المتغيرات
-TOKEN = os.getenv("DISCORD_BOT_TOKEN")   # من Secrets
+# قراءة المتغيرات من البيئة (GitHub Secrets)
+TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID", "0")
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False") == "True"
 
@@ -131,12 +134,13 @@ def parse_value(s):
 
 def scrape_forexfactory():
     """
-    يحاول أولاً الحصول على الصفحة عبر requests.
-    إن فشل (403 مثلاً)، يستخدم Selenium مع chromedriver المثبت في /usr/local/bin/chromedriver
+    يجمع الأخبار من موقع forexfactory.
+    إذا كانت خانة التاريخ أو الوقت تحتوي على "n/a" أو "لا يوجد" أو قيمة غير وقت حقيقي (لا تحتوي على ":")
+    يتم استخدام آخر قيمة صالحة. إذا فشل التحليل، يتم تعيين event_dt إلى None.
     """
     url = "https://www.forexfactory.com/calendar"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.6998.88 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.6998.89 Safari/537.36",
         "Accept-Language": "en-US,en;q=0.9",
         "Referer": "https://www.google.com/",
         "Connection": "keep-alive"
@@ -153,12 +157,13 @@ def scrape_forexfactory():
         print(f"⚠️ Requests failed: {e}")
 
     if html is None:
-        # Selenium fallback
+        # استخدام Selenium كخيار احتياطي
         try:
             print("Using standard Selenium fallback.")
             chrome_options = get_common_chrome_options()
-            driver_path = "/usr/local/bin/chromedriver"  # تم تثبيته في Workflow
-            service = Service(driver_path)
+            # استخدم chromedriver_autoinstaller لتثبيت الإصدار المناسب تلقائيًا
+            chromedriver_autoinstaller.install()  
+            service = Service()  # ستستخدم chromedriver الموجود في PATH
             driver = webdriver.Chrome(service=service, options=chrome_options)
             driver.get(url)
             slow_scroll(driver, step=500, delay=1, down_iterations=5, up_iterations=5)
@@ -392,13 +397,9 @@ class MyClient(discord.Client):
                 news_messages = analyze_news(ready_news)
                 for msg in news_messages:
                     await channel.send(msg)
-        
-        # إنهاء الاتصال بعد تنفيذ المهمة
         await self.close()
     
     async def on_message(self, message):
-        # في هذا السيناريو البوت ephemeral فلن يقرأ الرسائل لأنه يغلق بسرعة
-        # لكن إن أردت تجربته محلياً يمكنك تركه
         pass
 
 client = MyClient(intents=intents)
