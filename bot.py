@@ -29,8 +29,10 @@ intents = discord.Intents.default()
 
 def get_common_chrome_options():
     options = Options()
-    # تعيين موقع Chrome الذي ثبتناه
+    # تعيين موقع ملف Chrome الذي ثبتناه
     options.binary_location = "/usr/local/bin/google-chrome"
+    # إضافة دليل بيانات فريد لتجنب تعارض الجلسات
+    options.add_argument("--user-data-dir=/tmp/chrome-profile-{}".format(int(time.time())))
     if DEBUG_MODE:
         options.headless = False
     else:
