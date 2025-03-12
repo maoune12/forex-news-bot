@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
+import os
 import discord
 import requests
 from bs4 import BeautifulSoup
 import re
 import asyncio
 import time
+import csv
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -24,7 +26,7 @@ from selenium.webdriver.chrome.service import Service
 import chromedriver_autoinstaller
 
 # إعدادات البوت
-TOKEN = "MTM0NDgyMjQ3NTQzNDg4OTIzNg.GkvAX6.cSag8N0cL3BY9aRjB17KD_fogf-Gu7aE2AVsxQ"
+TOKEN = os.environ.get("DISCORD_BOT_TOKEN")  # يتم تعيين التوكن من متغير البيئة
 CHANNEL_ID = 1237965762396946445
 DEBUG_MODE = True
 
@@ -41,7 +43,7 @@ def get_common_chrome_options():
     options.add_experimental_option("useAutomationExtension", False)
     return options
 
-# دالة التمرير البطيء (Scroll) مع التمرير للأسفل ثم للأعلى
+# دالة تمرير بطيء: تنزل الصفحة 5 مرات ثم تصعد 5 مرات
 def slow_scroll(driver, step=500, delay=1, down_iterations=5, up_iterations=5):
     if DEBUG_MODE:
         print("Starting slow scroll.")
@@ -59,13 +61,14 @@ def slow_scroll(driver, step=500, delay=1, down_iterations=5, up_iterations=5):
     if DEBUG_MODE:
         print("Slow scroll completed. Final Y-offset:", final_pos)
 
-# إزالة الفراغ بين اسم اليوم والشهر
+# إزالة الفراغ بين اسم اليوم والشهر (مثلاً "Wed Mar" -> "WedMar")
 def fix_date_string(s):
     s = s.strip()
     if len(s) >= 7 and s[0:3].isalpha() and s[3] == " " and s[4:7].isalpha():
         return s[0:3] + s[4:]
     return s
 
+# دالة تحويل النص إلى تنسيق عربي للعرض (يمكن تعديلها حسب الحاجة)
 def format_arabic_date(dt, all_day=False):
     weekdays = {
         "Sun": "الأحد", "Mon": "الاثنين", "Tue": "الثلاثاء",
@@ -89,13 +92,11 @@ def format_arabic_date(dt, all_day=False):
         time_output = "طوال اليوم"
     return f"{weekdays.get(weekday_en, weekday_en)} {int(day)} {months.get(month_en, month_en)} {year} {time_output}"
 
-# دالة لتحويل نص التاريخ والوقت إلى كائن datetime
+# دالة لتحويل نص الوقت إلى كائن datetime باستخدام العام الحالي
 def parse_event_datetime(dt_str):
-    # نحذف كلمة "All Day" إن وُجدت
     dt_str = dt_str.replace("All Day", "").strip()
     current_year = datetime.now().year
-    # نفترض التنسيق: "WedMar12 10:00" أو "WedMar12 10:00 صباحًا"
-    # سنحاول تنسيقات متعددة
+    # نجرب تنسيقات متعددة
     for fmt in ("%a%b%d %H:%M", "%a%b%d %I:%M %p"):
         try:
             return datetime.strptime(f"{dt_str} {current_year}", f"{fmt} %Y")
@@ -105,11 +106,7 @@ def parse_event_datetime(dt_str):
         print("Failed to parse event datetime for:", dt_str)
     return None
 
-def convert_to_arabic_date_custom(raw_date_time):
-    # دالة تحويل خاصة بالنصوص (تُستخدم للعرض)
-    return raw_date_time  # يمكن تعديلها لاحقًا إذا لزم الأمر
-
-# دالة تحويل القيم الرقمية مثل "7.74M" إلى قيمة عددية
+# دالة تحويل القيم الرقمية (مثل "7.74M") إلى أرقام
 def parse_value(s):
     s = s.strip()
     multiplier = 1.0
@@ -183,6 +180,7 @@ def scrape_forexfactory():
                 print(f"⚠️ Selenium fallback failed: {se}")
                 return []
 
+    from bs4 import BeautifulSoup
     soup = BeautifulSoup(html, "html.parser")
     all_rows = soup.select("tr.calendar__row")
     if DEBUG_MODE:
@@ -197,10 +195,9 @@ def scrape_forexfactory():
         time_elem = row.select_one("td.calendar__time")
         row_time = time_elem.get_text(strip=True) if time_elem else ""
         date_cell = row.select_one("td.calendar__date")
-        if date_cell:
-            current_day = fix_date_string(date_cell.get_text(strip=True))
-        else:
+        if not date_cell:
             continue
+        current_day = fix_date_string(date_cell.get_text(strip=True))
 
         if row_time.lower() == "all day":
             date_time_str = f"{current_day} All Day"
@@ -252,7 +249,6 @@ def scrape_forexfactory():
     return news_data
 
 def analyze_news(news_data):
-    # هنا نقوم بترتيب الأحداث حسب الوقت باستخدام الدالة parse_event_datetime
     now = datetime.now()
     upcoming_events = []
     for ev in news_data:
@@ -267,55 +263,51 @@ def analyze_news(news_data):
     next_event = upcoming_events[0]
     time_diff = (next_event["parsed_time"] - now).total_seconds()
     print(f"Next event at {next_event['parsed_time']} (in {time_diff/60:.2f} minutes).")
-    # إذا تبقى 30 دقيقة أو أقل (1800 ثانية) قبل الخبر
-    if time_diff <= 1800:
-        # تحليل الخبر باستخدام الكود الحالي (يمكن تعديل التحليل إذا لزم الأمر)
+    # شرط: إذا تبقى ساعة أو أقل قبل وقوع الحدث (3600 ثانية)
+    if time_diff <= 3600:
         actual_str = next_event["actual"] if next_event["actual"] != "N/A" else "لا يوجد"
         forecast_str = next_event["forecast"] if next_event["forecast"] != "N/A" else "لا يوجد"
         previous_str = next_event["previous"] if next_event["previous"] != "N/A" else "لا يوجد"
-        
-        if (not actual_str.strip() or actual_str.strip() == "لا يوجد") and \
-           (not forecast_str.strip() or forecast_str.strip() == "لا يوجد") and \
-           (not previous_str.strip() or previous_str.strip() == "لا يوجد"):
-            sentiment = "لا يوجد بيانات"
+
+        sentiment = "لا يوجد بيانات"
+        try:
+            actual_value = parse_value(actual_str) if actual_str.strip() and actual_str.strip() != "لا يوجد" else None
+        except ValueError:
+            actual_value = None
+        try:
+            forecast_value = parse_value(forecast_str) if forecast_str.strip() and forecast_str.strip() != "لا يوجد" else None
+        except ValueError:
+            forecast_value = None
+        try:
+            previous_value = parse_value(previous_str) if previous_str.strip() and previous_str.strip() != "لا يوجد" else None
+        except ValueError:
+            previous_value = None
+
+        if actual_value is None or forecast_value is None or previous_value is None:
+            effective_diff = 0
         else:
-            try:
-                actual_value = parse_value(actual_str) if actual_str.strip() and actual_str.strip() != "لا يوجد" else None
-            except ValueError:
-                actual_value = None
-            try:
-                forecast_value = parse_value(forecast_str) if forecast_str.strip() and forecast_str.strip() != "لا يوجد" else None
-            except ValueError:
-                forecast_value = None
-            try:
-                previous_value = parse_value(previous_str) if previous_str.strip() and previous_str.strip() != "لا يوجد" else None
-            except ValueError:
-                previous_value = None
-            
-            if actual_value is None or forecast_value is None or previous_value is None:
-                effective_diff = 0
+            diff_forecast = ((actual_value - forecast_value) / forecast_value) * 100
+            diff_previous = ((actual_value - previous_value) / previous_value) * 100
+            effective_diff = (diff_forecast + diff_previous) / 2
+
+        moderate_threshold = 1.0
+        strong_threshold = 3.0
+
+        if abs(effective_diff) < moderate_threshold:
+            sentiment = "⚪ محايد"
+        elif effective_diff > 0:
+            if effective_diff >= strong_threshold:
+                sentiment = "🔵 إيجابي (خبر قوي)"
             else:
-                diff_forecast = ((actual_value - forecast_value) / forecast_value) * 100
-                diff_previous = ((actual_value - previous_value) / previous_value) * 100
-                effective_diff = (diff_forecast + diff_previous) / 2
-            
-            moderate_threshold = 1.0
-            strong_threshold = 3.0
-            
-            if abs(effective_diff) < moderate_threshold:
-                sentiment = "⚪ محايد"
-            elif effective_diff > 0:
-                if effective_diff >= strong_threshold:
-                    sentiment = "🔵 إيجابي (خبر قوي)"
-                else:
-                    sentiment = "🔵 إيجابي (خبر معتدل)"
+                sentiment = "🔵 إيجابي (خبر معتدل)"
+        else:
+            if effective_diff <= -strong_threshold:
+                sentiment = "🔴 سلبي (خبر قوي)"
             else:
-                if effective_diff <= -strong_threshold:
-                    sentiment = "🔴 سلبي (خبر قوي)"
-                else:
-                    sentiment = "🔴 سلبي (خبر معتدل)"
+                sentiment = "🔴 سلبي (خبر معتدل)"
         
-        tag_str = "@everyone\n" if sentiment not in ["⚪ محايد", "لا يوجد بيانات"] else ""
+        # نضيف دائمًا تاغ @everyone لكل خبر High Impact
+        tag_str = "@everyone\n"
         message = (
             f"{tag_str}"
             f"**{next_event['currency']} - {next_event['event']}** {next_event['impact_symbol']}\n\n"
@@ -327,23 +319,8 @@ def analyze_news(news_data):
         )
         return [message]
     else:
-        print("Next event is not due within 30 minutes. No event sent.")
+        print("Next event is not due within one hour. No event sent.")
         return []
-
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-
-scheduler = AsyncIOScheduler()
-
-# دالة الجدولة الرئيسية (التي سنشغلها مرة كل ساعة عبر GitHub Actions)
-def main_scheduler():
-    messages = analyze_news(scrape_forexfactory())
-    if messages:
-        for msg in messages:
-            print("Sending scheduled event:")
-            print(msg)
-            send_event_manual(msg)
-    else:
-        print("No event to send at this time.")
 
 def send_event_manual(message):
     channel = client.get_channel(CHANNEL_ID)
@@ -351,6 +328,17 @@ def send_event_manual(message):
         asyncio.run_coroutine_threadsafe(channel.send(message), client.loop)
     else:
         print("Channel not found.")
+
+def main_scheduler():
+    news = scrape_forexfactory()
+    messages = analyze_news(news)
+    if messages:
+        for msg in messages:
+            print("Sending scheduled event:")
+            print(msg)
+            send_event_manual(msg)
+    else:
+        print("No event to send at this time.")
 
 # Discord Bot
 class MyClient(discord.Client):
@@ -362,7 +350,7 @@ class MyClient(discord.Client):
             await channel.send("🤖 **Forex News Bot Ready! Checking for upcoming High Impact news.**")
         else:
             print("❌ Channel not found!")
-        main_scheduler()  # تشغيل الفحص والجدولة عند بدء التشغيل
+        main_scheduler()
 
     async def on_message(self, message):
         if message.author == self.user:
