@@ -15,7 +15,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
 
-# قراءة المتغيرات من البيئة (GitHub Secrets)
+# إعداد المتغيرات من البيئة
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID", "0")
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False") == "True"
@@ -27,12 +27,15 @@ except ValueError:
 
 intents = discord.Intents.default()
 
+def debug_print(msg):
+    if DEBUG_MODE:
+        print("[DEBUG]", msg)
+
 def get_common_chrome_options():
     options = Options()
-    # تعيين موقع ملف Chrome الذي ثبتناه
     options.binary_location = "/usr/local/bin/google-chrome"
-    # إضافة دليل بيانات فريد لتجنب تعارض الجلسات
-    options.add_argument("--user-data-dir=/tmp/chrome-profile-{}".format(int(time.time())))
+    # لم نستخدم خيار --user-data-dir لتجنب المشاكل، ولكن نطبع معلومات خيارات chrome
+    debug_print("Setting binary location to /usr/local/bin/google-chrome")
     if DEBUG_MODE:
         options.headless = False
     else:
@@ -42,26 +45,23 @@ def get_common_chrome_options():
     options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option("useAutomationExtension", False)
+    debug_print("Chrome options set: " + str(options.arguments))
     return options
 
 def slow_scroll(driver, step=500, delay=1, down_iterations=5, up_iterations=5):
-    if DEBUG_MODE:
-        print("Starting slow scroll.")
+    debug_print("Starting slow scroll...")
     for i in range(down_iterations):
         driver.execute_script(f"window.scrollBy(0, {step});")
         time.sleep(delay)
         offset = driver.execute_script("return window.pageYOffset;")
-        if DEBUG_MODE:
-            print(f"Down scroll {i+1} done. pageYOffset = {offset}")
+        debug_print(f"Down scroll {i+1} done. pageYOffset = {offset}")
     for i in range(up_iterations):
         driver.execute_script(f"window.scrollBy(0, -{step});")
         time.sleep(delay)
         offset = driver.execute_script("return window.pageYOffset;")
-        if DEBUG_MODE:
-            print(f"Up scroll {i+1} done. pageYOffset = {offset}")
-    if DEBUG_MODE:
-        final_pos = driver.execute_script("return window.pageYOffset;")
-        print("Slow scroll completed. Final page Y-offset:", final_pos)
+        debug_print(f"Up scroll {i+1} done. pageYOffset = {offset}")
+    final_pos = driver.execute_script("return window.pageYOffset;")
+    debug_print("Slow scroll completed. Final page Y-offset: " + str(final_pos))
 
 def fix_date_string(s):
     s = s.strip()
@@ -102,24 +102,22 @@ def convert_to_arabic_date(raw_date_time):
         current_year = datetime.now().year
         try:
             dt = datetime.strptime(f"{date_part} {current_year}", "%a%b %d %Y")
-        except Exception:
+        except Exception as e:
+            debug_print(f"Failed to parse date part: {e}")
             return raw_date_time
         return format_arabic_date(dt, all_day=True)
     raw_date_time = fix_date_string(raw_date_time)
     has_time = ":" in raw_date_time
     current_year = datetime.now().year
-    if not has_time:
-        try:
+    try:
+        if not has_time:
             dt = datetime.strptime(f"{raw_date_time} {current_year}", "%a%b %d %Y")
-        except Exception:
-            return raw_date_time
-        return format_arabic_date(dt, True)
-    else:
-        try:
+        else:
             dt = datetime.strptime(f"{raw_date_time} {current_year}", "%a%b %d %I:%M%p %Y")
-        except Exception:
-            return raw_date_time
-        return format_arabic_date(dt, False)
+    except Exception as e:
+        debug_print(f"Failed to parse full date time: {e}")
+        return raw_date_time
+    return format_arabic_date(dt, not has_time)
 
 def parse_value(s):
     s = s.strip()
@@ -135,6 +133,7 @@ def parse_value(s):
         return None
 
 def scrape_forexfactory():
+    debug_print("Starting to scrape ForexFactory.")
     url = "https://www.forexfactory.com/calendar"
     headers = {
         "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.6998.89 Safari/537.36",
@@ -144,47 +143,50 @@ def scrape_forexfactory():
     }
     html = None
     try:
+        debug_print("Sending requests.get to ForexFactory.")
         response = requests.get(url, headers=headers, timeout=10)
+        debug_print(f"Received response with status code: {response.status_code}")
         if response.status_code == 200:
             response.encoding = "utf-8"
             html = response.text
         else:
             raise Exception(f"Status code: {response.status_code}")
     except Exception as e:
-        print(f"⚠️ Requests failed: {e}")
+        debug_print(f"Requests failed: {e}")
 
     if html is None:
         try:
-            print("Using standard Selenium fallback.")
+            debug_print("Falling back to Selenium.")
             chrome_options = get_common_chrome_options()
             service = Service("/usr/local/bin/chromedriver")
+            debug_print("Initializing Selenium WebDriver.")
             driver = webdriver.Chrome(service=service, options=chrome_options)
             driver.get(url)
+            debug_print("Page loaded in Selenium. Performing full scroll.")
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             time.sleep(2)
             driver.execute_script("window.scrollTo(0, 0);")
             time.sleep(2)
             offset = driver.execute_script("return window.pageYOffset;")
-            if DEBUG_MODE:
-                print("Page Y-offset after full scroll:", offset)
-            print("Waiting for calendar row element (standard Selenium)...")
+            debug_print("Page Y-offset after full scroll: " + str(offset))
+            debug_print("Waiting for calendar row element with Selenium...")
             WebDriverWait(driver, 60).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, "td.calendar__currency"))
             )
             html = driver.page_source
             driver.quit()
+            debug_print("Selenium fallback succeeded.")
         except Exception as se:
-            print(f"⚠️ Selenium fallback failed: {se}")
+            debug_print(f"Selenium fallback failed: {se}")
             return []
 
     if not html:
+        debug_print("No HTML content retrieved.")
         return []
 
     soup = BeautifulSoup(html, "html.parser")
     all_rows = soup.select("tr.calendar__row")
-    if DEBUG_MODE:
-        print(f"Processing {len(all_rows)} calendar rows.")
-
+    debug_print(f"Found {len(all_rows)} calendar rows.")
     news_data = []
     current_year = datetime.now().year
     last_date = None
@@ -222,8 +224,7 @@ def scrape_forexfactory():
         try:
             event_dt = datetime.strptime(f"{current_day} {row_time} {current_year}", "%a%b %d %I:%M%p %Y")
         except Exception as e:
-            if DEBUG_MODE:
-                print(f"⚠️ Failed to parse datetime for row: {e}")
+            debug_print(f"Failed to parse datetime for row: {e}")
             event_dt = None
 
         currency_elem = row.select_one("td.calendar__currency")
@@ -239,9 +240,7 @@ def scrape_forexfactory():
         else:
             impact = "Low Impact Expected"
 
-        if DEBUG_MODE:
-            print(f"Row date and time: {current_day} {row_time}")
-            print("Row impact text:", impact)
+        debug_print(f"Row: {current_day} {row_time} - Impact: {impact}")
 
         actual_elem = row.select_one("td.calendar__actual")
         actual = actual_elem.get_text(strip=True) if actual_elem else "لا يوجد"
@@ -265,8 +264,7 @@ def scrape_forexfactory():
             "previous": previous
         })
     
-    if DEBUG_MODE:
-        print(f"Found {len(news_data)} news items in total.")
+    debug_print(f"Found {len(news_data)} news items in total.")
     return news_data
 
 def analyze_news(news_data):
