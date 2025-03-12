@@ -14,36 +14,52 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      - name: Install Google Chrome for Testing (v134.0.6998.88-1)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y wget gnupg unzip
-          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
-          sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list'
-          sudo apt-get update
-          sudo apt-get install -y google-chrome-stable=134.0.6998.88-1
-          google-chrome --version
-
-      - name: Download and install ChromeDriver for Testing (v134.0.6998.88)
-        run: |
-          wget https://storage.googleapis.com/chrome-for-testing-public/134.0.6998.88/linux64/chromedriver-linux64.zip
-          unzip chromedriver-linux64.zip -d chromedriver_temp
-          ls -R chromedriver_temp  # للتأكد من بنية المجلد
-          sudo mv chromedriver_temp/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver
-          sudo chmod +x /usr/local/bin/chromedriver
-          rm -rf chromedriver-linux64.zip chromedriver_temp
-          echo "Installed ChromeDriver version:"
-          chromedriver --version
-
       - name: Set up Python 3.9
         uses: actions/setup-python@v2
         with:
           python-version: '3.9'
 
-      - name: Install Python dependencies
+      - name: Install dependencies
         run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip
           python -m pip install --upgrade pip
           pip install discord.py requests beautifulsoup4 selenium gdown
+
+      - name: Download and install Google Chrome for Testing (v134.0.6998.88)
+        run: |
+          # تحميل ملف zip الخاص بـ Chrome for Testing
+          wget https://storage.googleapis.com/chrome-for-testing-public/134.0.6998.88/linux64/chrome-linux64.zip -O chrome.zip
+          unzip chrome.zip -d chrome_temp
+          # نبحث عن الملف التنفيذي باسم "chrome" داخل المجلد
+          CHROME_PATH=$(find chrome_temp -type f -name chrome | head -n 1)
+          if [ -z "$CHROME_PATH" ]; then
+            echo "Chrome binary not found in the extracted folder."
+            exit 1
+          fi
+          echo "Found Chrome binary at: $CHROME_PATH"
+          sudo mv "$CHROME_PATH" /usr/local/bin/google-chrome
+          sudo chmod +x /usr/local/bin/google-chrome
+          rm -rf chrome.zip chrome_temp
+          echo "Installed Chrome version:"
+          /usr/local/bin/google-chrome --version
+
+      - name: Download and install ChromeDriver for Testing (v134.0.6998.88)
+        run: |
+          wget https://storage.googleapis.com/chrome-for-testing-public/134.0.6998.88/linux64/chromedriver-linux64.zip -O chromedriver.zip
+          unzip chromedriver.zip -d chromedriver_temp
+          # نبحث عن الملف التنفيذي chromedriver
+          CHROMEDRIVER_PATH=$(find chromedriver_temp -type f -name chromedriver | head -n 1)
+          if [ -z "$CHROMEDRIVER_PATH" ]; then
+            echo "ChromeDriver binary not found in the extracted folder."
+            exit 1
+          fi
+          echo "Found ChromeDriver binary at: $CHROMEDRIVER_PATH"
+          sudo mv "$CHROMEDRIVER_PATH" /usr/local/bin/chromedriver
+          sudo chmod +x /usr/local/bin/chromedriver
+          rm -rf chromedriver.zip chromedriver_temp
+          echo "Installed ChromeDriver version:"
+          chromedriver --version
 
       - name: Run Discord Bot with xvfb
         env:
