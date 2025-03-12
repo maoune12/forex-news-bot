@@ -2,7 +2,7 @@ name: Hourly News Scheduler
 
 on:
   schedule:
-    - cron: "0 * * * 1-5"  # تشغيل كل ساعة من الاثنين إلى الجمعة
+    - cron: "0 * * * 1-5"  # مثال تشغيل كل ساعة من الاثنين إلى الجمعة
   workflow_dispatch:
 
 jobs:
@@ -22,4 +22,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run Bot Script
+        # هنا نمرر التوكن كمتغير بيئة
+        env:
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
         run: python bot.py
