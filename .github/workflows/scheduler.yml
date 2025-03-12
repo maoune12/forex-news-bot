@@ -14,11 +14,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      - name: Install Google Chrome stable (v134.0.6998.89)
+      - name: Install Google Chrome stable (v134.0.6998.88-1)
         run: |
-          # تحميل الحزمة بالإصدار المطلوب
-          wget https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_134.0.6998.89-1_amd64.deb
-          sudo dpkg -i google-chrome-stable_134.0.6998.89-1_amd64.deb || sudo apt-get -f install -y
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg
+          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list'
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable=134.0.6998.88-1
           google-chrome --version
 
       - name: Set up Python 3.9
