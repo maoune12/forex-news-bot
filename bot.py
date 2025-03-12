@@ -58,7 +58,7 @@ def filter_events_within_one_hour(events):
         event_utc = event_dt.astimezone(timezone.utc)
         delta = event_utc - now
         debug_print(f"Event '{event.get('title')}' at {event_utc.isoformat()} (delta: {delta})")
-        # نحتفظ بالأحداث التي ستكون خلال الساعة القادمة (بعد الآن وأقل من ساعة)
+        # نحتفظ بالأحداث التي تقع بعد الآن وأقل من ساعة
         if timedelta(0) <= delta <= timedelta(hours=1):
             ready.append(event)
     debug_print(f"Events within one hour: {len(ready)} found.")
@@ -73,7 +73,7 @@ def build_messages(events):
         previous = event.get("previous", "لا يوجد")
         try:
             event_dt = datetime.fromisoformat(event.get("date"))
-            # تنسيق التاريخ - يمكنك تعديل التنسيق حسب رغبتك
+            # تنسيق التاريخ كما تريد
             date_formatted = event_dt.strftime("%a %d %b %Y %I:%M %p")
         except Exception:
             date_formatted = event.get("date", "غير متوفر")
