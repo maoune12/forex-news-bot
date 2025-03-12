@@ -6,6 +6,7 @@ import asyncio
 import requests
 from datetime import datetime, timedelta, timezone
 
+# قراءة المتغيرات من البيئة
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID", "0")
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False") == "True"
@@ -15,6 +16,7 @@ try:
 except ValueError:
     CHANNEL_ID = 0
 
+# رابط البيانات بصيغة JSON
 DATA_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
 
 intents = discord.Intents.default()
@@ -36,6 +38,7 @@ def fetch_data():
         return []
 
 def filter_high_impact(data):
+    # نحتفظ فقط بالأحداث التي يكون تأثيرها "High" (بالحروف الصغيرة)
     high_events = [event for event in data if event.get("impact", "").strip().lower() == "high"]
     debug_print(f"Filtered high impact events: {len(high_events)} found.")
     return high_events
@@ -47,6 +50,7 @@ def filter_events_within_one_hour(events):
     for event in events:
         date_str = event.get("date")
         try:
+            # تحويل التاريخ بصيغة ISO مع الـ offset
             event_dt = datetime.fromisoformat(date_str)
         except Exception as e:
             debug_print(f"Error parsing date '{date_str}': {e}")
@@ -54,6 +58,7 @@ def filter_events_within_one_hour(events):
         event_utc = event_dt.astimezone(timezone.utc)
         delta = event_utc - now
         debug_print(f"Event '{event.get('title')}' at {event_utc.isoformat()} (delta: {delta})")
+        # نحتفظ بالأحداث التي ستكون خلال الساعة القادمة (بعد الآن وأقل من ساعة)
         if timedelta(0) <= delta <= timedelta(hours=1):
             ready.append(event)
     debug_print(f"Events within one hour: {len(ready)} found.")
@@ -68,6 +73,7 @@ def build_messages(events):
         previous = event.get("previous", "لا يوجد")
         try:
             event_dt = datetime.fromisoformat(event.get("date"))
+            # تنسيق التاريخ - يمكنك تعديل التنسيق حسب رغبتك
             date_formatted = event_dt.strftime("%a %d %b %Y %I:%M %p")
         except Exception:
             date_formatted = event.get("date", "غير متوفر")
@@ -94,7 +100,7 @@ class MyClient(discord.Client):
 
         data = fetch_data()
         if not data:
-            # لا نرسل أي رسالة إذا لم توجد بيانات
+            # إذا لم توجد بيانات، لا نرسل أي رسالة
             await self.close()
             return
 
@@ -104,8 +110,9 @@ class MyClient(discord.Client):
             messages = build_messages(ready_events)
             for msg in messages:
                 await channel.send(msg)
-        # إذا لم توجد أخبار جاهزة (ready_events)، لا نرسل شيئًا
-
+        else:
+            # إرسال رسالة لإعلام المستخدم بعدم وجود أخبار خلال الساعة القادمة
+            await channel.send("❌ لا توجد أخبار عالية التأثير خلال الساعة القادمة.")
         await self.close()
 
     async def on_message(self, message):
