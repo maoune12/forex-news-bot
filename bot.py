@@ -62,7 +62,7 @@ def filter_events_within_one_hour_and_ten_minutes(events):
         delta = event_utc - now
         debug_print(f"Event '{event.get('title')}' at {event_utc.isoformat()} (delta: {delta})")
 
-        if timedelta(0) <= delta <= timedelta(hours=1, minutes=10):
+        if timedelta(0) <= delta <= timedelta(hours=10, minutes=10):
             ready.append(event)
 
     debug_print(f"Events within 1 hour and 10 minutes: {len(ready)} found.")
@@ -70,6 +70,7 @@ def filter_events_within_one_hour_and_ten_minutes(events):
 
 def build_messages(events):
     messages = []
+    now = datetime.now(timezone.utc)
     for idx, event in enumerate(events, start=1):
         title = event.get("title", "لا يوجد")
         country = event.get("country", "غير محدد")
@@ -77,18 +78,23 @@ def build_messages(events):
         previous = event.get("previous", "لا يوجد")
         try:
             event_dt = datetime.fromisoformat(event.get("date"))
-            date_formatted = event_dt.strftime("%a %d %b %Y %I:%M %p")
+            event_utc = event_dt.astimezone(timezone.utc)
+            delta = event_utc - now
+            minutes = int(delta.total_seconds() // 60)
         except Exception:
-            date_formatted = event.get("date", "غير متوفر")
+            minutes = "غير متوفر"
 
         msg = (
             "@everyone\n"
-            f"{idx}. **{title}** ({country})\n"
-            f"التاريخ: {date_formatted}\n"
-            f"التوقع: {forecast}\n"
-            f"السابق: {previous}\n"
-            f"التأثير: High\n"
-            "--------------------------------------\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "📣 **تنبيه اقتصادي** 📣\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"**الحدث {idx}:** {title}\n"
+            f"**الدولة:** {country}\n"
+            f"**⏰ الخبر بعد:** {minutes} دقيقة\n"
+            f"**التوقع:** {forecast}\n"
+            f"**السابق:** {previous}\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         )
         messages.append(msg)
     return messages
