@@ -62,7 +62,7 @@ def filter_events_within_thirty_minutes(events):
         if timedelta(0) <= delta <= timedelta(hours=1):
             ready.append(event)
 
-    debug_print(f"Events within 30 minutes: {len(ready)} found.")
+    debug_print(f"Events within 1 hour: {len(ready)} found.")
     return ready
 
 def build_messages(events):
