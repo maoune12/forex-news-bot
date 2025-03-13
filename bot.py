@@ -65,7 +65,7 @@ def filter_events_within_thirty_minutes(events):
         debug_print(f"Event '{event.get('title')}' at {event_utc.isoformat()} (delta: {delta})")
 
         # نحتفظ بالأحداث التي ستكون خلال 30 دقيقة القادمة
-        if timedelta(0) <= delta <= timedelta(minutes=30):
+        if timedelta(0) <= delta <= timedelta(hours=100):
             ready.append(event)
 
     debug_print(f"Events within 30 minutes: {len(ready)} found.")
