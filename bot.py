@@ -43,10 +43,14 @@ def filter_high_impact(data):
     debug_print(f"Filtered high impact events: {len(high_events)} found.")
     return high_events
 
-def filter_events_within_one_hour(events):
+def filter_events_within_thirty_minutes(events):
+    """
+    نحتفظ بالأحداث التي ستكون خلال النصف ساعة القادمة (بعد الآن وحتى 30 دقيقة)
+    """
     ready = []
     now = datetime.now(timezone.utc)
     debug_print(f"Current UTC time: {now.isoformat()}")
+
     for event in events:
         date_str = event.get("date")
         try:
@@ -55,13 +59,16 @@ def filter_events_within_one_hour(events):
         except Exception as e:
             debug_print(f"Error parsing date '{date_str}': {e}")
             continue
+
         event_utc = event_dt.astimezone(timezone.utc)
         delta = event_utc - now
         debug_print(f"Event '{event.get('title')}' at {event_utc.isoformat()} (delta: {delta})")
-        # نحتفظ بالأحداث التي ستكون خلال الساعة القادمة (بعد الآن وأقل من ساعة)
-        if timedelta(0) <= delta <= timedelta(hours=1):
+
+        # نحتفظ بالأحداث التي ستكون خلال 30 دقيقة القادمة
+        if timedelta(0) <= delta <= timedelta(minutes=30):
             ready.append(event)
-    debug_print(f"Events within one hour: {len(ready)} found.")
+
+    debug_print(f"Events within 30 minutes: {len(ready)} found.")
     return ready
 
 def build_messages(events):
@@ -77,6 +84,7 @@ def build_messages(events):
             date_formatted = event_dt.strftime("%a %d %b %Y %I:%M %p")
         except Exception:
             date_formatted = event.get("date", "غير متوفر")
+
         msg = (
             "@everyone\n"
             f"{idx}. **{title}** ({country})\n"
@@ -105,14 +113,14 @@ class MyClient(discord.Client):
             return
 
         high_events = filter_high_impact(data)
-        ready_events = filter_events_within_one_hour(high_events)
+        ready_events = filter_events_within_thirty_minutes(high_events)
         if ready_events:
             messages = build_messages(ready_events)
             for msg in messages:
                 await channel.send(msg)
         else:
-            # إرسال رسالة لإعلام المستخدم بعدم وجود أخبار خلال الساعة القادمة
-            await channel.send("❌ لا توجد أخبار عالية التأثير خلال الساعة القادمة.")
+            # إرسال رسالة لإعلام المستخدم بعدم وجود أخبار خلال النصف ساعة القادمة
+            await channel.send("❌ لا توجد أخبار عالية التأثير خلال النصف ساعة القادمة.")
         await self.close()
 
     async def on_message(self, message):
