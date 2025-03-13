@@ -62,7 +62,7 @@ def filter_events_within_one_hour_and_ten_minutes(events):
         delta = event_utc - now
         debug_print(f"Event '{event.get('title')}' at {event_utc.isoformat()} (delta: {delta})")
 
-        if timedelta(0) <= delta <= timedelta(hours=10, minutes=10):
+        if timedelta(0) <= delta <= timedelta(hours=1, minutes=10):
             ready.append(event)
 
     debug_print(f"Events within 1 hour and 10 minutes: {len(ready)} found.")
