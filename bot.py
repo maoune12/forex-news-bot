@@ -73,8 +73,8 @@ def build_messages(events):
     now = datetime.now(timezone.utc)
     for idx, event in enumerate(events, start=1):
         title = event.get("title", "لا يوجد")
-        # تغيير كلمة الدولة إلى Currency
-        country = event.get("country", "غير محدد")
+        # استخدام حقل 'country' كـ Currency
+        currency = event.get("country", "غير محدد")
         forecast = event.get("forecast", "لا يوجد")
         previous = event.get("previous", "لا يوجد")
         try:
@@ -87,14 +87,13 @@ def build_messages(events):
 
         msg = (
             "@everyone\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"**تنبيه اقتصادي بعد {minutes} دقيقة**\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"**Event {idx}:** {title}\n"
-            f"**Currency:** {country}\n"
-            f"**Forecast:** {forecast}\n"
-            f"**Previous:** {previous}\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            "╔═══════════════════════════════╗\n"
+            f"   🚨 تنبيه اقتصادي بعد {minutes} دقيقة 🚨\n"
+            "╚═══════════════════════════════╝\n"
+            f"**Event**: {title}\n"
+            f"**Currency**: {currency}\n"
+            f"**Forecast**: {forecast}\n"
+            f"**Previous**: {previous}"
         )
         messages.append(msg)
     return messages
