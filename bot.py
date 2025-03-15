@@ -42,9 +42,9 @@ def filter_high_impact(data):
     debug_print(f"Filtered high impact events: {len(high_events)} found.")
     return high_events
 
-def filter_events_within_one_hour_and_ten_minutes(events):
+def filter_events_within_35_minutes(events):
     """
-    نحتفظ بالأحداث التي ستحدث خلال ساعة وعشر دقائق أو أقل
+    نحتفظ بالأحداث التي ستحدث خلال 35 دقيقة أو أقل
     """
     ready = []
     now = datetime.now(timezone.utc)
@@ -62,10 +62,10 @@ def filter_events_within_one_hour_and_ten_minutes(events):
         delta = event_utc - now
         debug_print(f"Event '{event.get('title')}' at {event_utc.isoformat()} (delta: {delta})")
 
-        if timedelta(0) <= delta <= timedelta(hours=1, minutes=10):
+        if timedelta(0) <= delta <= timedelta(minutes=35):
             ready.append(event)
 
-    debug_print(f"Events within 1 hour and 10 minutes: {len(ready)} found.")
+    debug_print(f"Events within 35 minutes: {len(ready)} found.")
     return ready
 
 def build_messages(events):
@@ -113,12 +113,12 @@ class MyClient(discord.Client):
             return
 
         high_events = filter_high_impact(data)
-        ready_events = filter_events_within_one_hour_and_ten_minutes(high_events)
+        ready_events = filter_events_within_35_minutes(high_events)
         if ready_events:
             messages = build_messages(ready_events)
             for msg in messages:
                 await channel.send(msg)
-        # إذا لم توجد أحداث قادمة خلال ساعة وعشر دقائق، لن يتم إرسال أي رسالة.
+        # إذا لم توجد أحداث قادمة خلال 35 دقيقة، لن يتم إرسال أي رسالة.
         await self.close()
 
     async def on_message(self, message):
