@@ -1,17 +1,14 @@
-name: Run Discord Bot
+name: Run the bot
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
     branches: [ "main" ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Check out the repository
+      - name: Check out the repo
         uses: actions/checkout@v2
 
       - name: Set up Python
@@ -25,4 +22,9 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run the bot
+        env:
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+          DATA_URL: ${{ secrets.DATA_URL }}
+          DEBUG_MODE: "False"  # or use a secret as well
         run: python bot.py
