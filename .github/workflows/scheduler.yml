@@ -1,33 +1,33 @@
-name: Run the bot
+name: Run Discord Bot (JSON Version)
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches: [ main ]
+  workflow_dispatch:
+  # schedule:
+  #   - cron: "0,40 0-23/2 * * 1-5"   # تشغيل في الدقائق 0 و40 في الساعات الزوجية (0,2,4,...,22)
+  #   - cron: "20 1-23/2 * * 1-5"    # تشغيل في الدقيقة 20 في الساعات الفردية (1,3,5,...,23)
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Check out the repository
+      - name: Checkout repository
         uses: actions/checkout@v2
 
-      - name: Set up Python
+      - name: Set up Python 3.9
         uses: actions/setup-python@v2
         with:
           python-version: "3.9"
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
-          pip install requests discord.py
+          python -m pip install --upgrade pip
+          pip install discord.py requests
 
-      - name: Run the bot
+      - name: Run Discord Bot
         env:
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
-          DATA_URL: ${{ secrets.DATA_URL }}
-          DEBUG_MODE: "False"
+          DEBUG_MODE: "True"
         run: python bot.py
