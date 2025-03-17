@@ -9,15 +9,13 @@ from datetime import datetime, timedelta, timezone
 # قراءة المتغيرات من البيئة
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID", "0")
+DATA_URL = os.getenv("DATA_URL")
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False") == "True"
 
 try:
     CHANNEL_ID = int(CHANNEL_ID)
 except ValueError:
     CHANNEL_ID = 0
-
-# رابط البيانات بصيغة JSON
-DATA_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
 
 intents = discord.Intents.default()
 
