@@ -3,28 +3,31 @@ name: Run the bot
 on:
   push:
     branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
-  build:
+  run-bot:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Check out the repo
+      - name: Check out the repository
         uses: actions/checkout@v2
 
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
-          python-version: '3.9'
+          python-version: "3.9"
 
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install requests discord.py
 
       - name: Run the bot
         env:
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
           DATA_URL: ${{ secrets.DATA_URL }}
-          DEBUG_MODE: "False"  # or use a secret as well
+          DEBUG_MODE: "False"
         run: python bot.py
