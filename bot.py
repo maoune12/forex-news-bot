@@ -5,6 +5,10 @@ import discord
 import asyncio
 import requests
 from datetime import datetime, timedelta, timezone
+from dotenv import load_dotenv  # import the load_dotenv function
+
+# Load environment variables from .env file
+load_dotenv()
 
 # قراءة المتغيرات من البيئة
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
