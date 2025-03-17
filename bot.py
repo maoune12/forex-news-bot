@@ -9,17 +9,15 @@ from datetime import datetime, timedelta, timezone
 # قراءة المتغيرات من البيئة
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID", "0")
-DATA_URL = os.getenv("DATA_URL")
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False") == "True"
-
-if not DATA_URL or not DATA_URL.strip():
-    print("❌ Data URL is missing or empty!")
-    exit(1)
 
 try:
     CHANNEL_ID = int(CHANNEL_ID)
 except ValueError:
     CHANNEL_ID = 0
+
+# رابط البيانات بصيغة JSON
+DATA_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
 
 intents = discord.Intents.default()
 
@@ -75,7 +73,7 @@ def build_messages(events):
     now = datetime.now(timezone.utc)
     for idx, event in enumerate(events, start=1):
         title = event.get("title", "لا يوجد")
-        # استخدام حقل 'country' كعملة (currency)
+        # استخدام حقل 'country' كـ Currency
         currency = event.get("country", "غير محدد")
         forecast = event.get("forecast", "لا يوجد")
         previous = event.get("previous", "لا يوجد")
@@ -120,7 +118,6 @@ class MyClient(discord.Client):
             messages = build_messages(ready_events)
             for msg in messages:
                 await channel.send(msg)
-
         # إذا لم توجد أحداث قادمة خلال 35 دقيقة، لن يتم إرسال أي رسالة.
         await self.close()
 
