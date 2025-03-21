@@ -4,6 +4,7 @@ import json
 import discord
 import asyncio
 import requests
+import random
 from datetime import datetime, timedelta, timezone
 
 # قراءة المتغيرات من البيئة
@@ -68,12 +69,37 @@ def filter_events_within_35_minutes(events):
     debug_print(f"Events within 35 minutes: {len(ready)} found.")
     return ready
 
+def filter_special_events(data):
+    """
+    نحتفظ بالأحداث الخاصة (NFP, CPI, FOMC) التي تكون ليوم الغد حسب التوقيت المحلي
+    """
+    special_keywords = ['nfp', 'cpi', 'fomc']
+    special_events = []
+    local_now = datetime.now()
+    tomorrow_date = local_now.date() + timedelta(days=1)
+    for event in data:
+        title = event.get("title", "").lower()
+        if any(keyword in title for keyword in special_keywords):
+            try:
+                event_dt = datetime.fromisoformat(event.get("date"))
+                # تحويل التاريخ للتوقيت المحلي
+                local_event_dt = event_dt.astimezone()
+                if local_event_dt.date() == tomorrow_date:
+                    special_events.append(event)
+            except Exception as e:
+                debug_print(f"Error parsing date for special event: {e}")
+                continue
+    debug_print(f"Special events for tomorrow: {len(special_events)} found.")
+    return special_events
+
 def build_messages(events):
+    """
+    التنبيه العادي للأحداث التي تحدث خلال 35 دقيقة، بتصميم معتمد باللغة العربية
+    """
     messages = []
     now = datetime.now(timezone.utc)
-    for idx, event in enumerate(events, start=1):
+    for event in events:
         title = event.get("title", "لا يوجد")
-        # استخدام حقل 'country' كـ Currency
         currency = event.get("country", "غير محدد")
         forecast = event.get("forecast", "لا يوجد")
         previous = event.get("previous", "لا يوجد")
@@ -87,16 +113,59 @@ def build_messages(events):
 
         msg = (
             "@everyone\n"
-            "╔═══════════════════════════════╗\n"
-            f"   🚨 تنبيه اقتصادي بعد {minutes} دقيقة 🚨\n"
-            "╚═══════════════════════════════╝\n"
-            f"**Event**: {title}\n"
-            f"**Currency**: {currency}\n"
-            f"**Forecast**: {forecast}\n"
-            f"**Previous**: {previous}"
+            f"تنبيه اقتصادي بعد {minutes} دقيقة\n\n"
+            f"الحدث: {title}\n"
+            f"العملة: {currency}\n"
+            f"التوقع: {forecast}\n"
+            f"السابق: {previous}"
         )
         messages.append(msg)
     return messages
+
+def build_special_message(event):
+    """
+    تنبيه خاص للأحداث (NFP, CPI, FOMC) ليوم الغد عند الساعة 23:00،
+    مع رسالة عشوائية من القائمة والتفاصيل الخاصة بالخبر.
+    """
+    # قائمة الرسائل الخاصة
+    special_messages = [
+        "السوق اليوم يشبه فيلم رعب، وانت بطل القصة الغبي اللي يدخل القبو.",
+        "السوق اليوم مو مزاجه حلو، خذلك راحة.",
+        "لو تفكر تفتح صفقة، فكر مرتين.",
+        "السيولة اليوم تلعب كورة، انتبه لا تكون الكرة.",
+        "لو محفظتك غالية عليك، خليك متفرج اليوم.",
+        "اليوم السوق يوزع دروس مجانية، بس مو شرط تكون ممتعة.",
+        "ترى الستوب ما رح يكون صديقك اليوم، دير بالك.",
+        "السوق عنده حفلة اليوم، وانت مو مدعو.",
+        "اذا كنت تحب الأدرينالين، افتح صفقة وشوف.",
+        "اليوم يوم أخبار ما رأيكم ان نأخذه اجازة؟",
+        "اذا كنت حاب محفظتك روح تداول اليوم",
+        "ريسك مناجمنت تاعك ما رح يحميك اليوم",
+        "إذا شفت فرصة اليوم، اسأل نفسك: \"فرصة لمين؟ لي ولا للسوق؟\"",
+        "لو عندك إحساس إن اليوم يوم ربح، تأكد إنه مجرد إحساس.",
+        "لو كنت تفكر تربح اليوم، فكر مرة ثانية… وثالثة… وبعدين انسَ",
+        "لو شفت فرصة واضحة اليوم، فاعرف أنها فخ أنيق.",
+        "لو حسابك فيه شوية أمل، لا تضيعه اليوم.",
+        "ستوب لوس تاعك ما رح يساعدك اليوم"
+    ]
+    random_message = random.choice(special_messages)
+    
+    title = event.get("title", "لا يوجد")
+    currency = event.get("country", "غير محدد")
+    forecast = event.get("forecast", "لا يوجد")
+    previous = event.get("previous", "لا يوجد")
+    
+    # تصميم التنبيه الخاص باللغة العربية
+    msg = (
+        "@everyone\n"
+        f"{random_message}\n\n"
+        "تنبيه: غداً يوجد خبر هام\n\n"
+        f"الحدث: {title}\n"
+        f"العملة: {currency}\n"
+        f"التوقع: {forecast}\n"
+        f"السابق: {previous}"
+    )
+    return msg
 
 class MyClient(discord.Client):
     async def on_ready(self):
@@ -112,13 +181,24 @@ class MyClient(discord.Client):
             await self.close()
             return
 
+        # التنبيه العادي للأحداث خلال 35 دقيقة
         high_events = filter_high_impact(data)
         ready_events = filter_events_within_35_minutes(high_events)
         if ready_events:
             messages = build_messages(ready_events)
             for msg in messages:
                 await channel.send(msg)
-        # إذا لم توجد أحداث قادمة خلال 35 دقيقة، لن يتم إرسال أي رسالة.
+
+        # التنبيه الخاص للأحداث (NFP, CPI, FOMC) ليوم الغد عند الساعة 23:00
+        local_now = datetime.now()
+        if local_now.hour == 23:
+            special_events = filter_special_events(data)
+            if special_events:
+                for event in special_events:
+                    special_msg = build_special_message(event)
+                    await channel.send(special_msg)
+
+        # إذا لم توجد أحداث قادمة خلال 35 دقيقة، أو لا يوجد أحداث خاصة عند 23:00، لا يتم إرسال أي رسالة.
         await self.close()
 
     async def on_message(self, message):
