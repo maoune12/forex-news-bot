@@ -63,7 +63,7 @@ def filter_events_within_35_minutes(events):
         delta = event_utc - now
         debug_print(f"Event '{event.get('title')}' at {event_utc.isoformat()} (delta: {delta})")
 
-        if timedelta(0) <= delta <= timedelta(minutes=300):
+        if timedelta(0) <= delta <= timedelta(minutes=35):
             ready.append(event)
 
     debug_print(f"Events within 35 minutes: {len(ready)} found.")
