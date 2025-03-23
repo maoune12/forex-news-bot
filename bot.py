@@ -71,13 +71,17 @@ def filter_events_within_35_minutes(events):
 
 def filter_special_events(data):
     """
-    نحتفظ بالأحداث الخاصة (NFP, CPI, FOMC) التي تكون ليوم الغد حسب التوقيت المحلي
+    نحتفظ بالأحداث الخاصة (NFP, CPI, FOMC) التي تكون ليوم الغد حسب التوقيت المحلي،
+    ونضمن أن تكون من الأخبار الحمراء (High impact) فقط.
     """
     special_keywords = ['nfp', 'cpi', 'fomc']
     special_events = []
     local_now = datetime.now()
     tomorrow_date = local_now.date() + timedelta(days=1)
     for event in data:
+        # التأكد من تأثير الحدث (High impact)
+        if event.get("impact", "").strip().lower() != "high":
+            continue
         title = event.get("title", "").lower()
         if any(keyword in title for keyword in special_keywords):
             try:
@@ -124,7 +128,7 @@ def build_messages(events):
 
 def build_special_message(event):
     """
-    تنبيه خاص للأحداث (NFP, CPI, FOMC) ليوم الغد عند الساعة 23:00،
+    تنبيه خاص للأحداث (NFP, CPI, FOMC) ليوم الغد عند الساعة 22:00،
     مع رسالة عشوائية من القائمة والتفاصيل الخاصة بالخبر.
     """
     # قائمة الرسائل الخاصة
@@ -189,16 +193,16 @@ class MyClient(discord.Client):
             for msg in messages:
                 await channel.send(msg)
 
-        # التنبيه الخاص للأحداث (NFP, CPI, FOMC) ليوم الغد عند الساعة 23:00
+        # التنبيه الخاص للأحداث (NFP, CPI, FOMC) ليوم الغد عند الساعة 22:00 خلال الدقائق الأولى فقط (حتى 22:05)
         local_now = datetime.now()
-        if local_now.hour == 23:
+        if local_now.hour == 22 and local_now.minute < 5:
             special_events = filter_special_events(data)
             if special_events:
                 for event in special_events:
                     special_msg = build_special_message(event)
                     await channel.send(special_msg)
 
-        # إذا لم توجد أحداث قادمة خلال 35 دقيقة، أو لا يوجد أحداث خاصة عند 23:00، لا يتم إرسال أي رسالة.
+        # إذا لم توجد أحداث قادمة خلال 35 دقيقة، أو لا يوجد أحداث خاصة في الفترة المحددة، لا يتم إرسال أي رسالة.
         await self.close()
 
     async def on_message(self, message):
