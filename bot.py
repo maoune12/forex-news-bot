@@ -90,7 +90,6 @@ def filter_special_events_week(data):
             except Exception as e:
                 debug_print(f"Error parsing date for special event: {e}")
                 continue
-    debug_print(f"Special events for week: {len(special_events)} found.")
     return special_events
 
 def filter_special_events_for_tomorrow(special_events_week):
@@ -209,7 +208,6 @@ class MyClient(discord.Client):
 
         # تجميع جميع الأحداث الخاصة للأسبوع وعرضها في debug
         special_events_week = filter_special_events_week(data)
-        # عرض جميع الأحداث الخاصة في debug
         debug_print(f"Special events for week: {len(special_events_week)} found.")
         for idx, event in enumerate(special_events_week, start=1):
             debug_print(f"Week event {idx}: {event.get('title', 'لا يوجد')}")
