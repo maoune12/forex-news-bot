@@ -90,6 +90,9 @@ def filter_special_events_week(data):
             except Exception as e:
                 debug_print(f"Error parsing date for special event: {e}")
                 continue
+    debug_print(f"Special events for week: {len(special_events)} found.")
+    for idx, event in enumerate(special_events, start=1):
+        debug_print(f"Week event {idx}: {event.get('title', 'لا يوجد')}")
     return special_events
 
 def filter_special_events_for_tomorrow(special_events_week):
@@ -208,17 +211,14 @@ class MyClient(discord.Client):
 
         # تجميع جميع الأحداث الخاصة للأسبوع وعرضها في debug
         special_events_week = filter_special_events_week(data)
-        debug_print(f"Special events for week: {len(special_events_week)} found.")
-        for idx, event in enumerate(special_events_week, start=1):
-            debug_print(f"Week event {idx}: {event.get('title', 'لا يوجد')}")
-
+        
         # نختار من القائمة فقط الأحداث التي ستحدث غدًا
         special_events_tomorrow = filter_special_events_for_tomorrow(special_events_week)
 
-        # خلال الفترة التجريبية (00:00 - 01:00) نرسل أحداث الغد فقط
+        # خلال الفترة التجريبية (22:00 - 22:05) نرسل أحداث الغد فقط
         local_now = datetime.now()
-        if local_now.hour < 1:  # الفترة التجريبية من 00:00 حتى 01:00
-            debug_print(f"Special events to be sent (00:00 - 01:00): {len(special_events_tomorrow)} found.")
+        if local_now.hour == 22 and local_now.minute < 5:
+            debug_print(f"Special events to be sent (22:00 - 22:05): {len(special_events_tomorrow)} found.")
             for idx, event in enumerate(special_events_tomorrow, start=1):
                 debug_print(f"Special event {idx}: {event.get('title', 'لا يوجد')}")
             if special_events_tomorrow:
