@@ -69,26 +69,22 @@ def filter_events_within_35_minutes(events):
     debug_print(f"Events within 35 minutes: {len(ready)} found.")
     return ready
 
-def filter_special_events(data):
+def filter_special_events_week(data):
     """
-    نحتفظ بالأحداث الخاصة (NFP, CPI, FOMC) للأسبوع بأكمله (خلال الأيام القادمة حتى 7 أيام)
-    ونضمن أن تكون من الأخبار الحمراء (High impact) فقط.
+    تجمع جميع الأحداث الخاصة (NFP, CPI, FOMC) للأسبوع القادم (7 أيام) بشرط أن تكون High impact.
     """
     special_keywords = ['nfp', 'cpi', 'fomc']
     special_events = []
     local_now = datetime.now()
     week_end_date = local_now.date() + timedelta(days=7)
     for event in data:
-        # التأكد من تأثير الحدث (High impact)
         if event.get("impact", "").strip().lower() != "high":
             continue
         title = event.get("title", "").lower()
         if any(keyword in title for keyword in special_keywords):
             try:
                 event_dt = datetime.fromisoformat(event.get("date"))
-                # تحويل التاريخ للتوقيت المحلي
-                local_event_dt = event_dt.astimezone()
-                # تحقق إذا كان الحدث ضمن الأسبوع الحالي
+                local_event_dt = event_dt.astimezone()  # تحويل للتوقيت المحلي
                 if local_now.date() <= local_event_dt.date() <= week_end_date:
                     special_events.append(event)
             except Exception as e:
@@ -97,9 +93,28 @@ def filter_special_events(data):
     debug_print(f"Special events for week: {len(special_events)} found.")
     return special_events
 
+def filter_special_events_for_tomorrow(special_events_week):
+    """
+    من القائمة الأسبوعية، نحتفظ بالأحداث التي ستحدث غدًا فقط.
+    """
+    local_now = datetime.now()
+    tomorrow_date = local_now.date() + timedelta(days=1)
+    events_tomorrow = []
+    for event in special_events_week:
+        try:
+            event_dt = datetime.fromisoformat(event.get("date"))
+            local_event_dt = event_dt.astimezone()
+            if local_event_dt.date() == tomorrow_date:
+                events_tomorrow.append(event)
+        except Exception as e:
+            debug_print(f"Error parsing date for special event (tomorrow filter): {e}")
+            continue
+    debug_print(f"Special events for tomorrow: {len(events_tomorrow)} found.")
+    return events_tomorrow
+
 def build_messages(events):
     """
-    التنبيه العادي للأحداث التي تحدث خلال 35 دقيقة، بتصميم معتمد باللغة العربية
+    التنبيه العادي للأحداث التي تحدث خلال 35 دقيقة، بتصميم معتمد باللغة العربية.
     """
     messages = []
     now = datetime.now(timezone.utc)
@@ -129,7 +144,7 @@ def build_messages(events):
 
 def build_special_message(event):
     """
-    تنبيه خاص للأحداث (NFP, CPI, FOMC) للأسبوع عند الفترة التجريبية (00:00 - 01:00)،
+    تنبيه خاص للأحداث (NFP, CPI, FOMC) التي ستحدث غدًا،
     مع رسالة عشوائية من القائمة والتفاصيل الخاصة بالخبر.
     """
     special_messages = [
@@ -162,7 +177,7 @@ def build_special_message(event):
     msg = (
         "@everyone\n"
         f"{random_message}\n\n"
-        "تنبيه: هناك خبر هام هذا الأسبوع\n\n"
+        "تنبيه: هناك خبر هام غدًا\n\n"
         f"الحدث: {title}\n"
         f"العملة: {currency}\n"
         f"التوقع: {forecast}\n"
@@ -192,19 +207,24 @@ class MyClient(discord.Client):
             for msg in messages:
                 await channel.send(msg)
 
-        # التجميع الخاص للأحداث الخاصة للأسبوع
-        special_events = filter_special_events(data)
-        # طباعة عدد الأحداث الخاصة للأسبوع
-        debug_print(f"Special events for week: {len(special_events)} found.")
-        
-        # إرسال التنبيه الخاص خلال الفترة التجريبية (00:00 - 01:00)
+        # تجميع جميع الأحداث الخاصة للأسبوع وعرضها في debug
+        special_events_week = filter_special_events_week(data)
+        # عرض جميع الأحداث الخاصة في debug
+        debug_print(f"Special events for week: {len(special_events_week)} found.")
+        for idx, event in enumerate(special_events_week, start=1):
+            debug_print(f"Week event {idx}: {event.get('title', 'لا يوجد')}")
+
+        # نختار من القائمة فقط الأحداث التي ستحدث غدًا
+        special_events_tomorrow = filter_special_events_for_tomorrow(special_events_week)
+
+        # خلال الفترة التجريبية (00:00 - 01:00) نرسل أحداث الغد فقط
         local_now = datetime.now()
         if local_now.hour < 1:  # الفترة التجريبية من 00:00 حتى 01:00
-            debug_print(f"Special events to be sent (00:00 - 01:00): {len(special_events)} found.")
-            for idx, event in enumerate(special_events, start=1):
+            debug_print(f"Special events to be sent (00:00 - 01:00): {len(special_events_tomorrow)} found.")
+            for idx, event in enumerate(special_events_tomorrow, start=1):
                 debug_print(f"Special event {idx}: {event.get('title', 'لا يوجد')}")
-            if special_events:
-                for event in special_events:
+            if special_events_tomorrow:
+                for event in special_events_tomorrow:
                     special_msg = build_special_message(event)
                     await channel.send(special_msg)
 
