@@ -128,7 +128,7 @@ def build_messages(events):
 
 def build_special_message(event):
     """
-    تنبيه خاص للأحداث (NFP, CPI, FOMC) ليوم الغد عند الساعة 22:00،
+    تنبيه خاص للأحداث (NFP, CPI, FOMC) ليوم الغد عند الساعة التجريبية (00:00 - 01:00)،
     مع رسالة عشوائية من القائمة والتفاصيل الخاصة بالخبر.
     """
     # قائمة الرسائل الخاصة
@@ -159,7 +159,6 @@ def build_special_message(event):
     forecast = event.get("forecast", "لا يوجد")
     previous = event.get("previous", "لا يوجد")
     
-    # تصميم التنبيه الخاص باللغة العربية
     msg = (
         "@everyone\n"
         f"{random_message}\n\n"
@@ -193,11 +192,11 @@ class MyClient(discord.Client):
             for msg in messages:
                 await channel.send(msg)
 
-        # التنبيه الخاص للأحداث (NFP, CPI, FOMC) ليوم الغد عند الساعة 22:00 خلال الدقائق الأولى فقط (حتى 22:05)
+        # التنبيه الخاص للأحداث (NFP, CPI, FOMC) ليوم الغد خلال الفترة التجريبية (من 00:00 إلى 01:00)
         local_now = datetime.now()
-        if local_now.hour == 22 and local_now.minute < 5:
+        if local_now.hour < 1:  # الفترة التجريبية من 00:00 حتى 01:00
             special_events = filter_special_events(data)
-            debug_print(f"Special events to be sent at 22:00: {len(special_events)} found.")
+            debug_print(f"Special events to be sent (00:00 - 01:00): {len(special_events)} found.")
             # طباعة تفاصيل كل خبر بشكل منفصل
             for idx, event in enumerate(special_events, start=1):
                 debug_print(f"Special event {idx}: {event.get('title', 'لا يوجد')}")
