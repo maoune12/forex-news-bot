@@ -197,6 +197,10 @@ class MyClient(discord.Client):
         local_now = datetime.now()
         if local_now.hour == 22 and local_now.minute < 5:
             special_events = filter_special_events(data)
+            debug_print(f"Special events to be sent at 22:00: {len(special_events)} found.")
+            # طباعة تفاصيل كل خبر بشكل منفصل
+            for idx, event in enumerate(special_events, start=1):
+                debug_print(f"Special event {idx}: {event.get('title', 'لا يوجد')}")
             if special_events:
                 for event in special_events:
                     special_msg = build_special_message(event)
