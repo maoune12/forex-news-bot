@@ -206,7 +206,6 @@ class MyClient(discord.Client):
                     special_msg = build_special_message(event)
                     await channel.send(special_msg)
 
-        # إذا لم توجد أحداث قادمة خلال 35 دقيقة، أو لا يوجد أحداث خاصة في الفترة المحددة، لا يتم إرسال أي رسالة.
         await self.close()
 
     async def on_message(self, message):
