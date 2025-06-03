@@ -193,56 +193,52 @@ def build_special_message(event):
 class MyClient(discord.Client):
     async def on_ready(self):
         print(f"✅ Logged in as {self.user}")
-        # collect only valid, found channel objects
-channels = []
-for cid in CHANNEL_IDS:
-    ch = self.get_channel(cid)
-    if ch:
-        channels.append(ch)
-    else:
-        print(f"❌ Channel {cid} not found!")
-if not channels:
-    # no valid channels → shut down
-    await self.close()
-    return
 
+        # === get all valid channel objects ===
+        channels = []
+        for cid in CHANNEL_IDS:
+            ch = self.get_channel(cid)
+            if ch:
+                channels.append(ch)
+            else:
+                print(f"❌ Channel {cid} not found!")
+        if not channels:
+            await self.close()
+            return
 
+        # === fetch data once ===
         data = fetch_data()
         if not data:
             await self.close()
             return
 
-        # التنبيه العادي للأحداث خلال 35 دقيقة
-        # التنبيه العادي للأحداث خلال 35 دقيقة
-high_events = filter_high_impact(data)
-ready_events = filter_events_within_35_minutes(high_events)
-if ready_events:
-    messages = build_messages(ready_events)
-    for ch in channels:
-        for msg in messages:
-            await ch.send(msg)
+        # === Normal alerts for high-impact events within 35 minutes ===
+        high_events = filter_high_impact(data)
+        ready_events = filter_events_within_35_minutes(high_events)
+        if ready_events:
+            messages = build_messages(ready_events)
+            for ch in channels:
+                for msg in messages:
+                    await ch.send(msg)
 
-        # تجميع جميع الأحداث الخاصة للأسبوع وعرضها في debug
+        # === Gather special events (NFP, CPI, FOMC) for the week ===
         special_events_week = filter_special_events_week(data)
-        
-        # نختار من القائمة فقط الأحداث التي ستحدث غدًا
         special_events_tomorrow = filter_special_events_for_tomorrow(special_events_week)
 
-        # خلال الفترة التجريبية (22:00 - 22:05) نرسل أحداث الغد فقط
-        # خلال الفترة التجريبية (22:00 - 22:05) نرسل أحداث الغد فقط
-local_now = datetime.now()
-if local_now.hour == 22 and local_now.minute < 5:
-    debug_print(f"Special events to be sent (22:00 - 22:05): {len(special_events_tomorrow)} found.")
-    for idx, event in enumerate(special_events_tomorrow, start=1):
-        debug_print(f"Special event {idx}: {event.get('title', 'لا يوجد')}")
-    if special_events_tomorrow:
-        for ch in channels:
-            for event in special_events_tomorrow:
-                special_msg = build_special_message(event)
-                await ch.send(special_msg)
-
+        # === Between 22:00 and 22:05 local, send tomorrow’s special events ===
+        local_now = datetime.now()
+        if local_now.hour == 22 and local_now.minute < 5:
+            debug_print(f"Special events to be sent (22:00 - 22:05): {len(special_events_tomorrow)} found.")
+            for idx, event in enumerate(special_events_tomorrow, start=1):
+                debug_print(f"Special event {idx}: {event.get('title', 'لا يوجد')}")
+            if special_events_tomorrow:
+                for ch in channels:
+                    for event in special_events_tomorrow:
+                        special_msg = build_special_message(event)
+                        await ch.send(special_msg)
 
         await self.close()
+
 
     async def on_message(self, message):
         pass
