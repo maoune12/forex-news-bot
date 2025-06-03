@@ -9,13 +9,16 @@ from datetime import datetime, timedelta, timezone
 
 # قراءة المتغيرات من البيئة
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-CHANNEL_ID = os.getenv("CHANNEL_ID", "0")
+# Accept comma-separated CHANNEL_IDs, e.g. "12345,67890"
+CHANNEL_IDS = os.getenv("CHANNEL_ID", "").split(",")
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False") == "True"
 
 try:
-    CHANNEL_ID = int(CHANNEL_ID)
+    # keep only valid integers
+    CHANNEL_IDS = [int(cid.strip()) for cid in CHANNEL_IDS if cid.strip().isdigit()]
 except ValueError:
-    CHANNEL_ID = 0
+    CHANNEL_IDS = []
+
 
 # رابط البيانات بصيغة JSON
 DATA_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
